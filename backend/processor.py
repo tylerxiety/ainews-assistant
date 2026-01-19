@@ -12,7 +12,6 @@ import uuid
 
 from google.cloud import texttospeech
 from google.cloud import storage
-from google.cloud import aiplatform
 import vertexai
 from vertexai.generative_models import GenerativeModel
 
@@ -37,8 +36,9 @@ class NewsletterProcessor:
         self.gcs_bucket_name = gcs_bucket_name
 
         # Initialize GCP clients
-        vertexai.init(project=gcp_project_id, location=gcp_region)
-        self.gemini_model = GenerativeModel("gemini-1.5-pro")
+        # Gemini 3 Pro Preview requires global region
+        vertexai.init(project=gcp_project_id, location="global")
+        self.gemini_model = GenerativeModel("gemini-3-pro-preview")
         self.tts_client = texttospeech.TextToSpeechClient()
         self.storage_client = storage.Client()
 
@@ -66,9 +66,17 @@ class NewsletterProcessor:
         raw_content = await self._fetch_newsletter(url)
         issue_data, segments_data = self._parse_newsletter(raw_content, url)
 
-        # Store issue in database
-        issue_result = self.supabase.table("issues").insert(issue_data).execute()
-        issue_id = issue_result.data[0]["id"]
+        # Check if issue already exists
+        existing_issue = self.supabase.table("issues").select("*").eq("url", url).execute()
+
+        if existing_issue.data:
+            # Issue exists, delete old segments and reprocess
+            issue_id = existing_issue.data[0]["id"]
+            self.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
+        else:
+            # Create new issue
+            issue_result = self.supabase.table("issues").insert(issue_data).execute()
+            issue_id = issue_result.data[0]["id"]
 
         # Process each segment
         for segment in segments_data:
@@ -104,7 +112,7 @@ class NewsletterProcessor:
 
     def _parse_newsletter(self, html_content: str, url: str) -> tuple[Dict, List[Dict]]:
         """
-        Parse newsletter HTML into structured segments.
+        Parse AINews newsletter HTML into structured segments.
 
         Args:
             html_content: Raw HTML
@@ -117,7 +125,7 @@ class NewsletterProcessor:
 
         # Extract issue metadata
         title = soup.find("title").text if soup.find("title") else "Untitled"
-        published_at = datetime.utcnow().isoformat()  # Parse from HTML if available
+        published_at = datetime.utcnow().isoformat()
 
         issue_data = {
             "title": title,
@@ -125,30 +133,39 @@ class NewsletterProcessor:
             "published_at": published_at,
         }
 
-        # Parse segments
+        # Find main article content
+        article = soup.find("article") or soup.find("div", class_=lambda x: x and "content" in x)
+
+        if not article:
+            # Fallback to body if no article found
+            article = soup.find("body")
+
         segments_data = []
         order_index = 0
 
-        # Example parsing logic - adjust based on actual newsletter structure
-        # This assumes sections with headers and items
-        for section in soup.find_all(["h2", "h3", "li", "p"]):
-            if section.name in ["h2", "h3"]:
+        # Parse AINews structure: h1/h2/h3 headers followed by list items
+        for element in article.find_all(["h1", "h2", "h3", "li"]):
+            if element.name in ["h1", "h2", "h3"]:
                 # Section header
-                segments_data.append({
-                    "segment_type": "section_header",
-                    "content_raw": section.get_text(strip=True),
-                    "links": [],
-                    "order_index": order_index,
-                })
-                order_index += 1
-            else:
-                # Regular item
-                text = section.get_text(strip=True)
-                if text:
+                text = element.get_text(strip=True)
+                if text:  # Only add non-empty headers
+                    segments_data.append({
+                        "segment_type": "section_header",
+                        "content_raw": text,
+                        "links": [],
+                        "order_index": order_index,
+                    })
+                    order_index += 1
+
+            elif element.name == "li":
+                # News item
+                text = element.get_text(strip=True)
+                if text and len(text) > 20:  # Filter out very short items
                     # Extract links
                     links = [
                         {"text": a.get_text(strip=True), "url": a.get("href")}
-                        for a in section.find_all("a")
+                        for a in element.find_all("a")
+                        if a.get("href")  # Only include links with href
                     ]
 
                     segments_data.append({
@@ -188,7 +205,8 @@ Return ONLY the cleaned text, no explanations.
 """
 
         response = await asyncio.to_thread(
-            self.gemini_model.generate_content, prompt
+            self.gemini_model.generate_content,
+            prompt
         )
         return response.text.strip()
 

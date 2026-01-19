@@ -6,6 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 from processor import NewsletterProcessor
 
@@ -81,6 +85,64 @@ async def get_issue_status(issue_id: str):
         if not status:
             raise HTTPException(status_code=404, detail="Issue not found")
         return status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/process-test")
+async def process_newsletter_test(request: ProcessRequest):
+    """
+    Test endpoint: Process only first 10 segments.
+
+    Use this for testing without high costs.
+    """
+    try:
+        # Fetch and parse
+        raw_content = await processor._fetch_newsletter(str(request.url))
+        issue_data, segments_data = processor._parse_newsletter(raw_content, str(request.url))
+
+        # Limit to first 10 segments
+        segments_data = segments_data[:10]
+
+        # Check if issue already exists
+        existing_issue = processor.supabase.table("issues").select("*").eq("url", str(request.url)).execute()
+
+        if existing_issue.data:
+            # Issue exists, delete old segments and reprocess
+            issue_id = existing_issue.data[0]["id"]
+            # Delete old segments
+            processor.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
+        else:
+            # Create new issue
+            issue_result = processor.supabase.table("issues").insert(issue_data).execute()
+            issue_id = issue_result.data[0]["id"]
+
+        # Process segments
+        for segment in segments_data:
+            segment["issue_id"] = issue_id
+            clean_text = await processor._clean_text_for_tts(segment["content_raw"])
+            segment["content_clean"] = clean_text
+
+            audio_url, duration_ms = await processor._generate_audio(
+                clean_text, issue_id, segment["order_index"]
+            )
+            segment["audio_url"] = audio_url
+            segment["audio_duration_ms"] = duration_ms
+
+        # Store segments
+        processor.supabase.table("segments").insert(segments_data).execute()
+
+        # Mark as processed
+        processor.supabase.table("issues").update(
+            {"processed_at": __import__("datetime").datetime.utcnow().isoformat()}
+        ).eq("id", issue_id).execute()
+
+        return {
+            "status": "completed",
+            "issue_id": issue_id,
+            "segments_processed": len(segments_data),
+            "message": "Test processing complete (first 10 segments only)"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
