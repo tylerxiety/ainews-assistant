@@ -11,9 +11,7 @@ npm install
 
 # Backend
 cd ../backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 2. Configure Environment Variables
@@ -51,8 +49,7 @@ npx supabase db push
 ```bash
 # Terminal 1: Backend
 cd backend
-source venv/bin/activate
-uvicorn main:app --reload --port 8080
+uv run uvicorn main:app --reload --port 8080
 
 # Terminal 2: Frontend
 cd frontend

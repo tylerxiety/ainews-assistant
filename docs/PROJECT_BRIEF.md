@@ -12,7 +12,7 @@ A PWA that converts the [AINews newsletter](https://news.smol.ai/) into a listen
 
 | Layer | Technology | Notes |
 |-------|------------|-------|
-| Frontend | Vite + React + plain CSS | PWA-enabled, deployed on Vercel |
+| Frontend | Vite + React + TypeScript + plain CSS | PWA-enabled, deployed on Vercel |
 | Backend | Python (Cloud Run) | Processes newsletters, generates audio |
 | Database | Supabase (Postgres) | Stores issues, segments, bookmarks |
 | Audio Storage | Google Cloud Storage | Stores generated audio files |
@@ -161,7 +161,7 @@ newsletter-player/
 
 ```bash
 cd newsletter-player
-npm create vite@latest frontend -- --template react
+npm create vite@latest frontend -- --template react-ts
 cd frontend
 npm install
 npm install @supabase/supabase-js
@@ -173,9 +173,8 @@ Create PWA manifest and service worker config (use vite-plugin-pwa).
 
 ```bash
 cd newsletter-player/backend
-python -m venv venv
-source venv/bin/activate
-pip install fastapi uvicorn google-cloud-texttospeech google-cloud-storage google-cloud-aiplatform supabase httpx beautifulsoup4 feedparser
+uv init
+uv add fastapi uvicorn google-cloud-texttospeech google-cloud-storage google-cloud-aiplatform supabase httpx beautifulsoup4 feedparser
 ```
 
 Create:

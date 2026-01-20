@@ -8,22 +8,24 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      // TODO: Add proper PWA assets (favicon.ico, apple-touch-icon.png, etc.)
+      includeAssets: ['vite.svg'],
       manifest: {
         name: 'Newsletter Audio Player',
         short_name: 'AudioNews',
         description: 'Listen to your AI newsletters',
         theme_color: '#ffffff',
+        // TODO: Replace with proper app icons
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'vite.svg',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/svg+xml'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'vite.svg',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/svg+xml'
           }
         ]
       }

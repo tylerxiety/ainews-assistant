@@ -1,11 +1,21 @@
 """
 FastAPI application for newsletter processing service.
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+import logging
+from fastapi import FastAPI, HTTPException
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 import os
 from typing import Optional
+from datetime import datetime, timezone
+import uuid
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -16,9 +26,11 @@ from processor import NewsletterProcessor
 app = FastAPI(title="Newsletter Audio Processor")
 
 # CORS middleware for frontend access
+# In production, set ALLOWED_ORIGINS env var (comma-separated)
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +43,8 @@ processor = NewsletterProcessor(
     gcp_project_id=os.getenv("GCP_PROJECT_ID"),
     gcp_region=os.getenv("GCP_REGION"),
     gcs_bucket_name=os.getenv("GCS_BUCKET_NAME"),
+    gemini_model_name=os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
+    max_concurrent_segments=int(os.getenv("MAX_CONCURRENT_SEGMENTS", "5")),
 )
 
 
@@ -45,19 +59,19 @@ async def health_check():
 
 
 @app.post("/process")
-async def process_newsletter(request: ProcessRequest, background_tasks: BackgroundTasks):
+async def process_newsletter(request: ProcessRequest):
     """
     Process a newsletter issue: fetch, parse, clean text, generate audio.
 
     Args:
         request: ProcessRequest with newsletter URL
-        background_tasks: FastAPI background tasks
 
     Returns:
         dict: Processing status and issue_id
     """
     try:
-        # Start processing in background
+        # Process newsletter synchronously
+        # Note: For large newsletters, consider adding background task support
         issue_id = await processor.process_newsletter(str(request.url))
 
         return {
@@ -65,6 +79,8 @@ async def process_newsletter(request: ProcessRequest, background_tasks: Backgrou
             "issue_id": issue_id,
             "message": "Newsletter processing started"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -80,71 +96,81 @@ async def get_issue_status(issue_id: str):
     Returns:
         dict: Issue processing status and details
     """
+    # Validate UUID format before querying database
+    try:
+        uuid.UUID(issue_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid issue_id format")
+
     try:
         status = await processor.get_issue_status(issue_id)
         if not status:
             raise HTTPException(status_code=404, detail="Issue not found")
         return status
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/process-test")
-async def process_newsletter_test(request: ProcessRequest):
-    """
-    Test endpoint: Process only first 10 segments.
+# Only register test endpoint in development
+if os.getenv("ENVIRONMENT", "development") == "development":
+    @app.post("/process-test")
+    async def process_newsletter_test(request: ProcessRequest):
+        """
+        Test endpoint: Process only first 10 segments.
 
-    Use this for testing without high costs.
-    """
-    try:
-        # Fetch and parse
-        raw_content = await processor._fetch_newsletter(str(request.url))
-        issue_data, segments_data = processor._parse_newsletter(raw_content, str(request.url))
+        Use this for testing without high costs.
+        Only available in development environment.
+        """
+        try:
+            # Fetch and parse
+            raw_content = await processor._fetch_newsletter(str(request.url))
+            issue_data, segments_data = processor._parse_newsletter(raw_content, str(request.url))
 
-        # Limit to first 10 segments
-        segments_data = segments_data[:10]
+            # Limit to first 10 segments
+            segments_data = segments_data[:10]
 
-        # Check if issue already exists
-        existing_issue = processor.supabase.table("issues").select("*").eq("url", str(request.url)).execute()
-
-        if existing_issue.data:
-            # Issue exists, delete old segments and reprocess
-            issue_id = existing_issue.data[0]["id"]
-            # Delete old segments
-            processor.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
-        else:
-            # Create new issue
-            issue_result = processor.supabase.table("issues").insert(issue_data).execute()
+            # Upsert issue to handle race conditions
+            issue_result = processor.supabase.table("issues").upsert(
+                issue_data,
+                on_conflict="url"
+            ).execute()
             issue_id = issue_result.data[0]["id"]
 
-        # Process segments
-        for segment in segments_data:
-            segment["issue_id"] = issue_id
-            clean_text = await processor._clean_text_for_tts(segment["content_raw"])
-            segment["content_clean"] = clean_text
+            # Delete old segments if reprocessing
+            processor.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
 
-            audio_url, duration_ms = await processor._generate_audio(
-                clean_text, issue_id, segment["order_index"]
-            )
-            segment["audio_url"] = audio_url
-            segment["audio_duration_ms"] = duration_ms
+            # Process segments
+            for segment in segments_data:
+                segment["issue_id"] = issue_id
+                clean_text = await processor._clean_text_for_tts(segment["content_raw"])
+                segment["content_clean"] = clean_text
 
-        # Store segments
-        processor.supabase.table("segments").insert(segments_data).execute()
+                audio_url, duration_ms = await processor._generate_audio(
+                    clean_text, issue_id, segment["order_index"]
+                )
+                segment["audio_url"] = audio_url
+                segment["audio_duration_ms"] = duration_ms
 
-        # Mark as processed
-        processor.supabase.table("issues").update(
-            {"processed_at": __import__("datetime").datetime.utcnow().isoformat()}
-        ).eq("id", issue_id).execute()
+            # Store segments
+            processor.supabase.table("segments").insert(segments_data).execute()
 
-        return {
-            "status": "completed",
-            "issue_id": issue_id,
-            "segments_processed": len(segments_data),
-            "message": "Test processing complete (first 10 segments only)"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            # Mark as processed
+            processor.supabase.table("issues").update(
+                {"processed_at": datetime.now(timezone.utc).isoformat()}
+            ).eq("id", issue_id).execute()
+
+            return {
+                "status": "completed",
+                "issue_id": issue_id,
+                "segments_processed": len(segments_data),
+                "message": "Test processing complete (first 10 segments only)"
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

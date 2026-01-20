@@ -33,3 +33,7 @@ dist-ssr/
 supabase/config.toml
 supabase/.branches
 supabase/.temp
+
+# GCP Service Account Keys (NEVER commit these!)
+**/service-account-key.json
+**/*-key.json

@@ -1,14 +1,20 @@
 """
 Newsletter processor: RSS fetch, parse, clean, TTS, and storage.
 """
+import logging
 import asyncio
+import io
+from typing import List, Dict, Optional
+from datetime import datetime, timezone
+import json
+import uuid
+
 import httpx
 import feedparser
 from bs4 import BeautifulSoup
-from typing import List, Dict, Optional
-from datetime import datetime
-import json
-import uuid
+from mutagen.mp3 import MP3
+
+logger = logging.getLogger(__name__)
 
 from google.cloud import texttospeech
 from google.cloud import storage
@@ -28,17 +34,21 @@ class NewsletterProcessor:
         gcp_project_id: str,
         gcp_region: str,
         gcs_bucket_name: str,
+        gemini_model_name: str = "gemini-3-pro-preview",
+        max_concurrent_segments: int = 5,
     ):
         """Initialize processor with credentials."""
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self.gcp_project_id = gcp_project_id
         self.gcp_region = gcp_region
         self.gcs_bucket_name = gcs_bucket_name
+        self.max_concurrent_segments = max_concurrent_segments
 
         # Initialize GCP clients
         # Gemini 3 Pro Preview requires global region
         vertexai.init(project=gcp_project_id, location="global")
-        self.gemini_model = GenerativeModel("gemini-3-pro-preview")
+        self.gemini_model = GenerativeModel(gemini_model_name)
+        logger.info(f"Initialized processor with Gemini model: {gemini_model_name}")
         self.tts_client = texttospeech.TextToSpeechClient()
         self.storage_client = storage.Client()
 
@@ -62,45 +72,54 @@ class NewsletterProcessor:
         Returns:
             str: Issue UUID
         """
+        logger.info(f"Processing newsletter: {url}")
+
         # Fetch and parse RSS/HTML
         raw_content = await self._fetch_newsletter(url)
         issue_data, segments_data = self._parse_newsletter(raw_content, url)
+        logger.info(f"Parsed {len(segments_data)} segments from newsletter")
 
-        # Check if issue already exists
-        existing_issue = self.supabase.table("issues").select("*").eq("url", url).execute()
+        # Upsert issue to handle race conditions
+        issue_result = self.supabase.table("issues").upsert(
+            issue_data,
+            on_conflict="url"
+        ).execute()
+        issue_id = issue_result.data[0]["id"]
 
-        if existing_issue.data:
-            # Issue exists, delete old segments and reprocess
-            issue_id = existing_issue.data[0]["id"]
-            self.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
-        else:
-            # Create new issue
-            issue_result = self.supabase.table("issues").insert(issue_data).execute()
-            issue_id = issue_result.data[0]["id"]
+        # Delete old segments if reprocessing
+        self.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
 
-        # Process each segment
-        for segment in segments_data:
-            segment["issue_id"] = issue_id
+        # Process segments in parallel with rate limiting
+        semaphore = asyncio.Semaphore(self.max_concurrent_segments)
 
-            # Clean text with Gemini
-            clean_text = await self._clean_text_for_tts(segment["content_raw"])
-            segment["content_clean"] = clean_text
+        async def process_segment(segment: Dict) -> Dict:
+            async with semaphore:
+                segment["issue_id"] = issue_id
+                # Clean text with Gemini
+                clean_text = await self._clean_text_for_tts(segment["content_raw"])
+                segment["content_clean"] = clean_text
+                # Generate audio with TTS
+                audio_url, duration_ms = await self._generate_audio(
+                    clean_text, issue_id, segment["order_index"]
+                )
+                segment["audio_url"] = audio_url
+                segment["audio_duration_ms"] = duration_ms
+                logger.debug(f"Processed segment {segment['order_index']}")
+                return segment
 
-            # Generate audio with TTS
-            audio_url, duration_ms = await self._generate_audio(
-                clean_text, issue_id, segment["order_index"]
-            )
-            segment["audio_url"] = audio_url
-            segment["audio_duration_ms"] = duration_ms
+        # Process all segments concurrently
+        segments_data = await asyncio.gather(*[process_segment(s) for s in segments_data])
 
         # Store all segments
         self.supabase.table("segments").insert(segments_data).execute()
+        logger.info(f"Stored {len(segments_data)} segments for issue {issue_id}")
 
         # Mark issue as processed
         self.supabase.table("issues").update(
-            {"processed_at": datetime.utcnow().isoformat()}
+            {"processed_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", issue_id).execute()
 
+        logger.info(f"Newsletter processing complete: {issue_id}")
         return issue_id
 
     async def _fetch_newsletter(self, url: str) -> str:
@@ -125,7 +144,7 @@ class NewsletterProcessor:
 
         # Extract issue metadata
         title = soup.find("title").text if soup.find("title") else "Untitled"
-        published_at = datetime.utcnow().isoformat()
+        published_at = datetime.now(timezone.utc).isoformat()
 
         issue_data = {
             "title": title,
@@ -249,9 +268,10 @@ Return ONLY the cleaned text, no explanations.
         blob.make_public()
         audio_url = blob.public_url
 
-        # Calculate duration (approximate from text length)
-        # More accurate: use audio file metadata
-        duration_ms = len(text) * 60  # ~60ms per character (rough estimate)
+        # Extract actual duration from MP3 metadata
+        audio_file = io.BytesIO(response.audio_content)
+        audio = MP3(audio_file)
+        duration_ms = int(audio.info.length * 1000)
 
         return audio_url, duration_ms
 

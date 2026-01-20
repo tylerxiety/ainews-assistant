@@ -23,8 +23,7 @@ else
     echo ""
     echo "Please start the server first:"
     echo "  cd backend"
-    echo "  source .venv/bin/activate"
-    echo "  uvicorn main:app --reload --port 8080"
+    echo "  uv run uvicorn main:app --reload --port 8080"
     exit 1
 fi
 

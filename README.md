@@ -81,14 +81,12 @@ ainews-assistant/
 
 4. Install dependencies:
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   uv sync
    ```
 
 5. Run locally:
    ```bash
-   uvicorn main:app --reload
+   uv run uvicorn main:app --reload
    ```
 
 6. Deploy to Cloud Run:
@@ -153,8 +151,7 @@ Test the complete pipeline:
 
 ```bash
 cd backend
-source venv/bin/activate
-uvicorn main:app --reload --port 8080
+uv run uvicorn main:app --reload --port 8080
 ```
 
 ### Frontend Development

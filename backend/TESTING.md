@@ -2,11 +2,12 @@
 
 ## Prerequisites
 
-Ensure your environment is set up:
+Ensure you're in the backend directory:
 ```bash
 cd /Users/tylerxie/airepo/ainews-assistant/backend
-source .venv/bin/activate
 ```
+
+All commands below use `uv run` to execute in the virtual environment.
 
 ---
 
@@ -14,7 +15,7 @@ source .venv/bin/activate
 
 **Start the server:**
 ```bash
-uvicorn main:app --reload --port 8080
+uv run uvicorn main:app --reload --port 8080
 ```
 
 **In another terminal, test health:**
@@ -165,16 +166,16 @@ You can also use the Python test scripts:
 
 ```bash
 # Test Supabase connection
-python test_connection.py
+uv run python test_connection.py
 
 # Test GCP services
-python test_gcp_connection.py
+uv run python test_gcp_connection.py
 
 # Test Gemini 3 Pro
-python test_gemini3_pro.py
+uv run python test_gemini3_pro.py
 
 # Test full pipeline (first 3 segments)
-python test_pipeline.py
+uv run python test_pipeline.py
 ```
 
 ---
