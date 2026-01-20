@@ -1,5 +1,6 @@
 ---
-description: Peer Review
+description: Evaluate peer review findings from another agent
+argument-hint: [paste review findings here]
 ---
 
 A different team lead within the company has reviewed the current code/implementation and provided findings below. Important context:
@@ -10,7 +11,7 @@ A different team lead within the company has reviewed the current code/implement
 
 Findings from peer review:
 
-[PASTE FEEDBACK FROM OTHER MODEL]
+$ARGUMENTS
 
 ---
 

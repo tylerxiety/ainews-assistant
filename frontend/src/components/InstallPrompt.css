@@ -1,0 +1,70 @@
+.install-prompt {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  padding: 12px 16px;
+  z-index: 200;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.install-prompt-content {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.install-prompt-text {
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.install-prompt-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.install-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  background: white;
+  color: #646cff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.install-btn:hover {
+  background: #f0f0f0;
+}
+
+.dismiss-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  background: transparent;
+  color: white;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.dismiss-btn:hover {
+  border-color: white;
+  background: rgba(255, 255, 255, 0.1);
+}

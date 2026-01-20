@@ -1,6 +1,15 @@
 # Newsletter Audio Player
 
+
 A PWA that converts the [AINews newsletter](https://news.smol.ai/) into a listenable audio experience with clean TTS, visual sync, and ClickUp integration.
+
+## 🚀 Live Demo
+
+| Service | URL |
+|---------|-----|
+| **Frontend PWA** | [https://ainews-assistant.vercel.app](https://ainews-assistant.vercel.app) |
+| **Backend API** | [https://newsletter-processor-872179428244.us-central1.run.app/docs](https://newsletter-processor-872179428244.us-central1.run.app/docs) |
+
 
 ## Architecture
 
@@ -205,18 +214,18 @@ npx supabase db push
 
 ### MVP (Current)
 - [x] Scaffold monorepo structure
-- [ ] RSS feed parsing
-- [ ] Text cleaning with Gemini
-- [ ] Audio generation with TTS
-- [ ] Basic audio player UI
-- [ ] Issue list view
+- [x] RSS feed parsing
+- [x] Text cleaning with Gemini
+- [x] Audio generation with TTS
+- [x] Basic audio player UI
+- [x] Issue list view
 
 ### Phase 2
-- [ ] Audio sync with visual highlighting
-- [ ] Auto-scroll during playback
-- [ ] ClickUp bookmark integration
-- [ ] Playback speed control
-- [ ] PWA offline support
+- [x] Audio sync with visual highlighting
+- [x] Auto-scroll during playback
+- [x] ClickUp bookmark integration
+- [x] Playback speed control
+- [x] PWA offline support
 
 ### Future
 - [ ] Cloud Scheduler automation (every 6 hours)

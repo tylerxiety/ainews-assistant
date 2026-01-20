@@ -2,21 +2,15 @@
 FastAPI application for newsletter processing service.
 """
 import logging
-from fastapi import FastAPI, HTTPException
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 import os
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 import uuid
 from dotenv import load_dotenv
+import httpx
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +18,19 @@ load_dotenv()
 from processor import NewsletterProcessor
 
 app = FastAPI(title="Newsletter Audio Processor")
+
+# Logger will be configured at startup
+logger = logging.getLogger(__name__)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Configure logging on startup to avoid conflicts with Uvicorn."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    logger.info("Newsletter Audio Processor starting up")
 
 # CORS middleware for frontend access
 # In production, set ALLOWED_ORIGINS env var (comma-separated)
@@ -45,11 +52,20 @@ processor = NewsletterProcessor(
     gcs_bucket_name=os.getenv("GCS_BUCKET_NAME"),
     gemini_model_name=os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
     max_concurrent_segments=int(os.getenv("MAX_CONCURRENT_SEGMENTS", "5")),
+    tts_voice_name=os.getenv("TTS_VOICE_NAME", "en-US-Chirp3-HD-Aoede"),
 )
 
 
 class ProcessRequest(BaseModel):
     url: HttpUrl
+
+
+class BookmarkRequest(BaseModel):
+    api_token: str
+    list_id: str
+    task_name: str
+    description: str
+    tags: List[str] = ["newsletter-bookmark"]
 
 
 @app.get("/")
@@ -59,25 +75,33 @@ async def health_check():
 
 
 @app.post("/process")
-async def process_newsletter(request: ProcessRequest):
+async def process_newsletter(request: ProcessRequest, background_tasks: BackgroundTasks):
     """
     Process a newsletter issue: fetch, parse, clean text, generate audio.
+    Processing happens in the background to avoid request timeouts.
 
     Args:
         request: ProcessRequest with newsletter URL
+        background_tasks: FastAPI BackgroundTasks
 
     Returns:
         dict: Processing status and issue_id
     """
     try:
-        # Process newsletter synchronously
-        # Note: For large newsletters, consider adding background task support
-        issue_id = await processor.process_newsletter(str(request.url))
+        # Generate issue ID upfront
+        issue_id = str(uuid.uuid4())
+
+        # Process newsletter in background to avoid timeouts
+        background_tasks.add_task(
+            processor.process_newsletter,
+            str(request.url),
+            issue_id
+        )
 
         return {
             "status": "processing",
             "issue_id": issue_id,
-            "message": "Newsletter processing started"
+            "message": "Newsletter processing started in background"
         }
     except HTTPException:
         raise
@@ -107,6 +131,54 @@ async def get_issue_status(issue_id: str):
         if not status:
             raise HTTPException(status_code=404, detail="Issue not found")
         return status
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/bookmark")
+async def create_clickup_bookmark(request: BookmarkRequest):
+    """
+    Proxy endpoint for creating ClickUp tasks.
+    Solves CORS issues by proxying the request through the backend.
+
+    Args:
+        request: BookmarkRequest with ClickUp credentials and task data
+
+    Returns:
+        dict: ClickUp task creation response
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://api.clickup.com/api/v2/list/{request.list_id}/task",
+                headers={
+                    "Authorization": request.api_token,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "name": request.task_name,
+                    "markdown_description": request.description,
+                    "tags": request.tags,
+                },
+                timeout=30.0,
+            )
+
+            if not response.is_success:
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("err") or error_data.get("error") or f"HTTP {response.status_code}"
+                except Exception:
+                    error_msg = f"HTTP {response.status_code}"
+                raise HTTPException(status_code=response.status_code, detail=f"ClickUp API error: {error_msg}")
+
+            return response.json()
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="ClickUp API request timed out")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Failed to connect to ClickUp API: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:

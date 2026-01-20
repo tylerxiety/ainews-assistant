@@ -6,8 +6,6 @@ description: Code Review Task
 
 Perform comprehensive code review. Be thorough but concise.
 
-**Note:** Frontend is currently JavaScript. TypeScript rules apply post-migration.
-
 ## Check For:
 
 - **Backend (Python/FastAPI)** - Correct async/await usage, Pydantic models for validation, proper HTTP status codes (4xx for client errors, not 500s).

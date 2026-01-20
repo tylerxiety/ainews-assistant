@@ -1,0 +1,450 @@
+.player {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  padding-bottom: 100px;
+  /* Space for fixed controls */
+}
+
+.player-header {
+  margin-bottom: 20px;
+}
+
+.header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.settings-link {
+  font-size: 1.25rem;
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.settings-link:hover {
+  opacity: 1;
+}
+
+.back-link {
+  display: inline-block;
+  color: #888;
+  text-decoration: none;
+  font-size: 0.875rem;
+  margin-bottom: 12px;
+}
+
+.back-link:hover {
+  color: #aaa;
+}
+
+.player-header h1 {
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+  color: #f0f0f0;
+}
+
+.player-header .published-date {
+  font-size: 0.875rem;
+  color: #888;
+  margin: 0;
+}
+
+/* Audio Controls */
+.audio-controls {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #1a1a1a;
+  border-top: 1px solid #333;
+  z-index: 100;
+}
+
+.play-pause-btn {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: #646cff;
+  color: white;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.play-pause-btn:hover:not(:disabled) {
+  background: #535bf2;
+}
+
+.play-pause-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.progress-container {
+  flex: 1;
+  height: 8px;
+  background: #333;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #646cff;
+  transition: width 0.1s linear;
+}
+
+.time-display {
+  font-size: 0.75rem;
+  color: #888;
+  min-width: 80px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.speed-btn {
+  padding: 6px 12px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: transparent;
+  color: #f0f0f0;
+  font-size: 0.875rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.speed-btn:hover {
+  border-color: #646cff;
+}
+
+.segment-indicator {
+  font-size: 0.75rem;
+  color: #888;
+  flex-shrink: 0;
+}
+
+/* Segments List */
+.segments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.no-segments {
+  text-align: center;
+  color: #888;
+  padding: 48px 20px;
+}
+
+.segment {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  scroll-margin-bottom: 100px;
+  /* Account for fixed audio controls */
+}
+
+.segment:hover {
+  background: #252525;
+}
+
+.segment.active {
+  border-color: #646cff;
+  background: #1e1e3f;
+}
+
+.segment.header {
+  background: #252525;
+}
+
+.segment.header.active {
+  background: #2a2a4f;
+}
+
+.segment-content {
+  flex: 1;
+  min-width: 0;
+  /* Allow text to wrap properly */
+}
+
+.segment h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: #f0f0f0;
+}
+
+.segment p {
+  font-size: 0.9375rem;
+  margin: 0;
+  color: #d0d0d0;
+  line-height: 1.5;
+}
+
+.segment-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.segment-links a {
+  font-size: 0.75rem;
+  color: #646cff;
+  text-decoration: none;
+  padding: 2px 8px;
+  background: rgba(100, 108, 255, 0.1);
+  border-radius: 4px;
+}
+
+.segment-links a:hover {
+  background: rgba(100, 108, 255, 0.2);
+}
+
+/* Bookmark Button */
+.bookmark-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  transition: all 0.2s;
+  opacity: 0.6;
+}
+
+.segment:hover .bookmark-btn {
+  opacity: 1;
+}
+
+.bookmark-btn:hover:not(:disabled) {
+  border-color: #646cff;
+  background: rgba(100, 108, 255, 0.1);
+}
+
+.bookmark-btn:disabled {
+  cursor: default;
+}
+
+.bookmark-btn.bookmarked {
+  opacity: 1;
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.bookmark-btn.bookmarked .bookmark-done {
+  color: #4ade80;
+  font-weight: bold;
+}
+
+.bookmark-loading {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Bookmark Error Toast */
+.bookmark-error-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(248, 113, 113, 0.95);
+  color: white;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+  animation: slideDown 0.3s ease;
+  max-width: calc(100% - 40px);
+}
+
+.toast-icon {
+  font-size: 1rem;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Error states */
+.player-error {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.player-error .back-link {
+  display: inline-block;
+  color: #888;
+  text-decoration: none;
+  font-size: 0.875rem;
+  margin-bottom: 12px;
+}
+
+.player-error .back-link:hover {
+  color: #aaa;
+}
+
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  gap: 12px;
+}
+
+.error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.error-message {
+  color: #f0f0f0;
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.error-detail {
+  color: #888;
+  font-size: 0.875rem;
+  margin: 0;
+  text-align: center;
+}
+
+.retry-btn {
+  margin-top: 8px;
+  padding: 8px 20px;
+  border: 1px solid #646cff;
+  border-radius: 6px;
+  background: transparent;
+  color: #646cff;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.retry-btn:hover {
+  background: rgba(100, 108, 255, 0.1);
+}
+
+/* Mobile responsive styles */
+@media (max-width: 600px) {
+  .player {
+    padding: 16px;
+    padding-bottom: 90px;
+  }
+
+  .player-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .audio-controls {
+    padding: 12px 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .play-pause-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1.1rem;
+  }
+
+  .progress-container {
+    order: 5;
+    flex-basis: 100%;
+    margin-top: 4px;
+  }
+
+  .time-display {
+    font-size: 0.7rem;
+    min-width: 70px;
+  }
+
+  .speed-btn {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+  }
+
+  .segment-indicator {
+    font-size: 0.7rem;
+  }
+
+  .segment {
+    padding: 10px 14px;
+  }
+
+  .segment h3 {
+    font-size: 0.9375rem;
+  }
+
+  .segment p {
+    font-size: 0.875rem;
+  }
+
+  .segment-links {
+    gap: 6px;
+  }
+
+  .segment-links a {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+  }
+}

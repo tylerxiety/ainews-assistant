@@ -1,0 +1,31 @@
+# Ignore local environment files
+.env
+.env.*
+
+# Ignore credentials
+*.json
+service-account-key.json
+
+# Ignore virtual environment
+.venv/
+venv/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore test files
+test_*.py
+*_test.py
+tests/
+
+# Ignore documentation
+*.md
+TESTING.md
+
+# Ignore uv lock
+uv.lock
+
+# Ignore shell scripts
+*.sh

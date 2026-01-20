@@ -36,6 +36,7 @@ class NewsletterProcessor:
         gcs_bucket_name: str,
         gemini_model_name: str = "gemini-3-pro-preview",
         max_concurrent_segments: int = 5,
+        tts_voice_name: str = "en-US-Chirp3-HD-Aoede",
     ):
         """Initialize processor with credentials."""
         self.supabase: Client = create_client(supabase_url, supabase_key)
@@ -55,19 +56,21 @@ class NewsletterProcessor:
         # TTS voice configuration
         self.voice = texttospeech.VoiceSelectionParams(
             language_code="en-US",
-            name="en-US-Chirp3-HD-Aoede",
+            name=tts_voice_name,
         )
+        logger.info(f"Using TTS voice: {tts_voice_name}")
         self.audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3,
             speaking_rate=1.0,
         )
 
-    async def process_newsletter(self, url: str) -> str:
+    async def process_newsletter(self, url: str, issue_id: Optional[str] = None) -> str:
         """
         Main processing pipeline for a newsletter issue.
 
         Args:
             url: URL of the newsletter issue
+            issue_id: Optional pre-generated issue UUID (for background tasks)
 
         Returns:
             str: Issue UUID
@@ -79,12 +82,21 @@ class NewsletterProcessor:
         issue_data, segments_data = self._parse_newsletter(raw_content, url)
         logger.info(f"Parsed {len(segments_data)} segments from newsletter")
 
-        # Upsert issue to handle race conditions
-        issue_result = self.supabase.table("issues").upsert(
-            issue_data,
-            on_conflict="url"
-        ).execute()
-        issue_id = issue_result.data[0]["id"]
+        # Use provided issue_id or get from upsert
+        if issue_id:
+            # For background tasks, insert with specific ID
+            issue_data["id"] = issue_id
+            self.supabase.table("issues").upsert(
+                issue_data,
+                on_conflict="url"
+            ).execute()
+        else:
+            # Upsert issue to handle race conditions
+            issue_result = self.supabase.table("issues").upsert(
+                issue_data,
+                on_conflict="url"
+            ).execute()
+            issue_id = issue_result.data[0]["id"]
 
         # Delete old segments if reprocessing
         self.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
@@ -108,11 +120,25 @@ class NewsletterProcessor:
                 return segment
 
         # Process all segments concurrently
-        segments_data = await asyncio.gather(*[process_segment(s) for s in segments_data])
+        segments_results = await asyncio.gather(
+            *[process_segment(s) for s in segments_data],
+            return_exceptions=True
+        )
 
-        # Store all segments
-        self.supabase.table("segments").insert(segments_data).execute()
-        logger.info(f"Stored {len(segments_data)} segments for issue {issue_id}")
+        # Filter out exceptions and log them
+        segments_data = []
+        for i, result in enumerate(segments_results):
+            if isinstance(result, Exception):
+                logger.error(f"Failed to process segment {i}: {result}")
+            else:
+                segments_data.append(result)
+
+        # Store all successfully processed segments
+        if segments_data:
+            self.supabase.table("segments").insert(segments_data).execute()
+            logger.info(f"Stored {len(segments_data)} segments for issue {issue_id}")
+        else:
+            logger.warning(f"No segments were successfully processed for issue {issue_id}")
 
         # Mark issue as processed
         self.supabase.table("issues").update(
@@ -125,7 +151,7 @@ class NewsletterProcessor:
     async def _fetch_newsletter(self, url: str) -> str:
         """Fetch newsletter content from URL."""
         async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+            response = await client.get(url, timeout=30.0)
             response.raise_for_status()
             return response.text
 
@@ -207,7 +233,7 @@ class NewsletterProcessor:
         Returns:
             str: Cleaned text for TTS
         """
-        prompt = f"""
+        prompt = """
 Clean the following newsletter text for text-to-speech. Apply these rules:
 
 1. Replace "@username" with "[username] tweeted"
@@ -217,11 +243,12 @@ Clean the following newsletter text for text-to-speech. Apply these rules:
 5. Remove any other formatting that sounds unnatural when read aloud
 6. Keep the text conversational and natural
 
-Text to clean:
+<text_to_clean>
 {raw_text}
+</text_to_clean>
 
 Return ONLY the cleaned text, no explanations.
-"""
+""".format(raw_text=raw_text)
 
         response = await asyncio.to_thread(
             self.gemini_model.generate_content,
