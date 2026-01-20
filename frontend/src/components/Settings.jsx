@@ -182,6 +182,9 @@ export default function Settings() {
                     </div>
                 </div>
             </section>
+            <footer className="settings-footer" style={{ textAlign: 'center', marginTop: '2rem', color: '#666', fontSize: '0.8rem' }}>
+                v1.0.0
+            </footer>
         </div>
     )
 }
