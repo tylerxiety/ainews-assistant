@@ -3,7 +3,6 @@
  */
 
 const STORAGE_KEY = 'clickup_settings'
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080'
 
 /**
  * Get ClickUp settings from localStorage
@@ -19,8 +18,7 @@ export function getClickUpSettings() {
             return settings
         }
         return null
-    } catch (e) {
-        console.warn('Invalid ClickUp settings in localStorage:', e)
+    } catch {
         return null
     }
 }
@@ -80,30 +78,25 @@ export async function createClickUpTask(segment, issueTitle) {
         })
     }
 
-    // Call backend proxy to avoid CORS issues
-    const response = await fetch(`${BACKEND_URL}/api/bookmark`, {
+    // ClickUp API call
+    const response = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task`, {
         method: 'POST',
         headers: {
+            'Authorization': apiToken,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            api_token: apiToken,
-            list_id: listId,
-            task_name: taskName,
-            description: description,
+            name: taskName,
+            markdown_description: description,
+            // Add tag for easy filtering
             tags: ['newsletter-bookmark'],
         }),
     })
 
     if (!response.ok) {
-        let errorMsg = `HTTP ${response.status}`
-        try {
-            const errorData = await response.json()
-            errorMsg = errorData.detail || errorData.error || errorMsg
-        } catch (e) {
-            console.warn('Failed to parse error response:', e)
-        }
-        throw new Error(`Failed to create bookmark: ${errorMsg}`)
+        const errorData = await response.json().catch(() => ({}))
+        const errorMsg = errorData.err || errorData.error || `HTTP ${response.status}`
+        throw new Error(`ClickUp API error: ${errorMsg}`)
     }
 
     return response.json()

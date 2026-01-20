@@ -6,11 +6,10 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 import os
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from datetime import datetime, timezone
 import uuid
 from dotenv import load_dotenv
-import httpx
 
 # Load environment variables
 load_dotenv()
@@ -58,14 +57,6 @@ processor = NewsletterProcessor(
 
 class ProcessRequest(BaseModel):
     url: HttpUrl
-
-
-class BookmarkRequest(BaseModel):
-    api_token: str
-    list_id: str
-    task_name: str
-    description: str
-    tags: List[str] = ["newsletter-bookmark"]
 
 
 @app.get("/")
@@ -131,54 +122,6 @@ async def get_issue_status(issue_id: str):
         if not status:
             raise HTTPException(status_code=404, detail="Issue not found")
         return status
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/bookmark")
-async def create_clickup_bookmark(request: BookmarkRequest):
-    """
-    Proxy endpoint for creating ClickUp tasks.
-    Solves CORS issues by proxying the request through the backend.
-
-    Args:
-        request: BookmarkRequest with ClickUp credentials and task data
-
-    Returns:
-        dict: ClickUp task creation response
-    """
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://api.clickup.com/api/v2/list/{request.list_id}/task",
-                headers={
-                    "Authorization": request.api_token,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "name": request.task_name,
-                    "markdown_description": request.description,
-                    "tags": request.tags,
-                },
-                timeout=30.0,
-            )
-
-            if not response.is_success:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("err") or error_data.get("error") or f"HTTP {response.status_code}"
-                except Exception:
-                    error_msg = f"HTTP {response.status_code}"
-                raise HTTPException(status_code=response.status_code, detail=f"ClickUp API error: {error_msg}")
-
-            return response.json()
-
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="ClickUp API request timed out")
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=502, detail=f"Failed to connect to ClickUp API: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
