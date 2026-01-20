@@ -1,5 +1,6 @@
 """
 FastAPI application for newsletter processing service.
+Version: 1.0.1
 """
 import logging
 from fastapi import FastAPI, HTTPException, BackgroundTasks
