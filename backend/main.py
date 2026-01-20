@@ -88,7 +88,7 @@ async def process_newsletter(request: ProcessRequest, background_tasks: Backgrou
     try:
         # Generate issue ID upfront
         issue_id = str(uuid.uuid4())
-        logger.info(f"Generated issue_id: {issue_id}")
+        logger.info(f"Generated issue_id: {issue_id} - triggering CI")
 
         # Process newsletter in background to avoid timeouts
         background_tasks.add_task(
