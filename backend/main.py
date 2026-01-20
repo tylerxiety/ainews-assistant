@@ -31,6 +31,13 @@ async def startup_event():
     )
     logger.info("Newsletter Audio Processor starting up")
 
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup resources on shutdown."""
+    await processor.close()
+    logger.info("Newsletter Audio Processor shutting down")
+
 # CORS middleware for frontend access
 # In production, set ALLOWED_ORIGINS env var (comma-separated)
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")

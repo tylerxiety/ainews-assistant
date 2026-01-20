@@ -63,6 +63,13 @@ class NewsletterProcessor:
             audio_encoding=texttospeech.AudioEncoding.MP3,
             speaking_rate=1.0,
         )
+        
+        # Shared HTTP client
+        self.http_client = httpx.AsyncClient(timeout=30.0)
+
+    async def close(self):
+        """Close resources."""
+        await self.http_client.aclose()
 
     async def process_newsletter(self, url: str, issue_id: Optional[str] = None) -> str:
         """
@@ -79,7 +86,7 @@ class NewsletterProcessor:
 
         # Fetch and parse RSS/HTML
         raw_content = await self._fetch_newsletter(url)
-        issue_data, segments_data = self._parse_newsletter(raw_content, url)
+        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, raw_content, url)
         logger.info(f"Parsed {len(segments_data)} segments from newsletter")
 
         # Use provided issue_id or get from upsert
@@ -150,10 +157,9 @@ class NewsletterProcessor:
 
     async def _fetch_newsletter(self, url: str) -> str:
         """Fetch newsletter content from URL."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=30.0)
-            response.raise_for_status()
-            return response.text
+        response = await self.http_client.get(url)
+        response.raise_for_status()
+        return response.text
 
     def _parse_newsletter(self, html_content: str, url: str) -> tuple[Dict, List[Dict]]:
         """

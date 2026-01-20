@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-PROJECT_ID="gen-lang-client-0104465868"
+PROJECT_ID="${GCP_PROJECT_ID:-your-project-id}"
 REGION="us-central1"
 SERVICE_NAME="newsletter-processor"
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"

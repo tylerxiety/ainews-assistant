@@ -46,9 +46,7 @@ export default function Player() {
         } catch (err) {
           // Bookmarks table might not exist yet, silently ignore
           // In development, log for debugging
-          if (import.meta.env.DEV) {
-            console.warn('Could not load bookmarks:', err.message)
-          }
+
         }
       } catch (err) {
         setError(err.message)
@@ -84,7 +82,7 @@ export default function Player() {
         audio.removeEventListener('canplay', handleCanPlay)
       }
     }
-  }, [currentSegmentIndex, segments])
+  }, [currentSegmentIndex, segments, loading])
 
   // Update playback rate when speed changes
   useEffect(() => {
@@ -111,11 +109,28 @@ export default function Player() {
     }
   }, [currentSegmentIndex])
 
+  const handleAudioError = (e) => {
+
+    setError(`Audio playback failed: ${e.target.error?.message || 'Unknown error'}`)
+    setIsPlaying(false)
+  }
+
   const handlePlay = () => {
     if (audioRef.current) {
       hasInteractedRef.current = true
       shouldAutoPlayRef.current = true
-      audioRef.current.play()
+      const playPromise = audioRef.current.play()
+
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.error("Play failed:", err)
+          // Don't show error for aborts (user clicked pause/next quickly)
+          if (err.name !== 'AbortError') {
+            setError(`Playback failed: ${err.message}`)
+          }
+          setIsPlaying(false)
+        })
+      }
       setIsPlaying(true)
     }
   }
@@ -298,6 +313,7 @@ export default function Player() {
         onLoadedMetadata={handleLoadedMetadata}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        onError={handleAudioError}
       />
 
       {/* Audio controls */}
