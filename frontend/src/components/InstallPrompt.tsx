@@ -1,16 +1,25 @@
 import { useState, useEffect } from 'react'
 import './InstallPrompt.css'
 
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
+}
+
 export default function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
 
   useEffect(() => {
-    const handler = (e) => {
+    const handler = (e: Event) => {
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault()
       // Save the event so it can be triggered later
-      setDeferredPrompt(e)
+      setDeferredPrompt(e as BeforeInstallPromptEvent)
       // Show install prompt after a delay
       setTimeout(() => setShowPrompt(true), 3000)
     }

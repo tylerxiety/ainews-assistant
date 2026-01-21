@@ -2,27 +2,28 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { fetchIssueWithSegments, fetchBookmarks, createBookmark } from '../lib/supabase'
 import { isClickUpConfigured, createClickUpTask } from '../lib/clickup'
+import { Issue, Segment } from '../types'
 import Loading from './Loading'
 import './Player.css'
 
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
 
 export default function Player() {
-  const { issueId } = useParams()
-  const [issue, setIssue] = useState(null)
-  const [segments, setSegments] = useState([])
+  const { issueId } = useParams<{ issueId: string }>()
+  const [issue, setIssue] = useState<Issue | null>(null)
+  const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Bookmark state
-  const [bookmarkedSegments, setBookmarkedSegments] = useState(new Set())
-  const [bookmarkingSegment, setBookmarkingSegment] = useState(null) // ID of segment being bookmarked
-  const [bookmarkError, setBookmarkError] = useState(null)
+  const [bookmarkedSegments, setBookmarkedSegments] = useState<Set<string>>(new Set())
+  const [bookmarkingSegment, setBookmarkingSegment] = useState<string | null>(null) // ID of segment being bookmarked
+  const [bookmarkError, setBookmarkError] = useState<string | null>(null)
 
   // Audio state
-  const audioRef = useRef(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const shouldAutoPlayRef = useRef(false)
-  const segmentRefs = useRef([])
+  const segmentRefs = useRef<(HTMLDivElement | null)[]>([])
   const hasInteractedRef = useRef(false) // Track if user has interacted (to skip initial scroll)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0)
@@ -33,6 +34,8 @@ export default function Player() {
   // Load issue, segments, and bookmarks
   useEffect(() => {
     async function loadData() {
+      if (!issueId) return
+
       try {
         const { issue, segments } = await fetchIssueWithSegments(issueId)
         setIssue(issue)
@@ -48,8 +51,8 @@ export default function Player() {
           // In development, log for debugging
 
         }
-      } catch (err) {
-        setError(err.message)
+      } catch (err: any) {
+        setError(err.message || 'Unknown error')
       } finally {
         setLoading(false)
       }
@@ -79,7 +82,7 @@ export default function Player() {
       }
 
       audio.addEventListener('canplay', handleCanPlay)
-      audio.src = segments[currentSegmentIndex].audio_url
+      audio.src = segments[currentSegmentIndex].audio_url || ''
       audio.load()
 
       return () => {
@@ -113,9 +116,9 @@ export default function Player() {
     }
   }, [currentSegmentIndex])
 
-  const handleAudioError = (e) => {
-
-    setError(`Audio playback failed: ${e.target.error?.message || 'Unknown error'}`)
+  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    const target = e.target as HTMLAudioElement
+    setError(`Audio playback failed: ${target.error?.message || 'Unknown error'}`)
     setIsPlaying(false)
   }
 
@@ -181,7 +184,7 @@ export default function Player() {
     }
   }
 
-  const handleProgressClick = (e) => {
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (audioRef.current && duration > 0) {
       const rect = e.currentTarget.getBoundingClientRect()
       const clickX = e.clientX - rect.left
@@ -190,7 +193,7 @@ export default function Player() {
     }
   }
 
-  const handleSegmentClick = (index) => {
+  const handleSegmentClick = (index: number) => {
     hasInteractedRef.current = true
     setCurrentSegmentIndex(index)
     if (!isPlaying) {
@@ -204,7 +207,7 @@ export default function Player() {
     setPlaybackSpeed(PLAYBACK_SPEEDS[nextIndex])
   }
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     if (isNaN(seconds)) return '0:00'
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
@@ -212,8 +215,10 @@ export default function Player() {
   }
 
   // Handle bookmark click
-  const handleBookmark = async (e, segment) => {
+  const handleBookmark = async (e: React.MouseEvent, segment: Segment) => {
     e.stopPropagation() // Don't trigger segment click
+
+    if (!issueId || !issue) return
 
     // Check if already bookmarked
     if (bookmarkedSegments.has(segment.id)) {
@@ -239,12 +244,12 @@ export default function Player() {
 
       // Update local state
       setBookmarkedSegments(prev => new Set([...prev, segment.id]))
-    } catch (err) {
+    } catch (err: any) {
       // Log error in development only
       if (import.meta.env.DEV) {
         console.error('Bookmark failed:', err)
       }
-      setBookmarkError(err.message)
+      setBookmarkError(err.message || 'Unknown error')
       setTimeout(() => setBookmarkError(null), 4000)
     } finally {
       setBookmarkingSegment(null)
@@ -360,7 +365,7 @@ export default function Player() {
           segments.map((segment, index) => (
             <div
               key={segment.id}
-              ref={(el) => (segmentRefs.current[index] = el)}
+              ref={(el) => { segmentRefs.current[index] = el }}
               className={`segment ${index === currentSegmentIndex ? 'active' : ''} ${segment.segment_type === 'section_header' ? 'header' : 'item'
                 }`}
               onClick={() => handleSegmentClick(index)}

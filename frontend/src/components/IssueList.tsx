@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchIssues } from '../lib/supabase'
+import { Issue } from '../types'
 import Loading from './Loading'
 import './IssueList.css'
 
 export default function IssueList() {
-  const [issues, setIssues] = useState([])
+  const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadIssues() {
       try {
         const data = await fetchIssues()
         setIssues(data)
-      } catch (err) {
-        setError(err.message)
+      } catch (err: any) {
+        setError(err.message || 'Unknown error')
       } finally {
         setLoading(false)
       }

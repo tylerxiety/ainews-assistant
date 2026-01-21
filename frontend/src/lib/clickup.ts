@@ -1,21 +1,21 @@
 /**
  * ClickUp API integration for bookmarking newsletter segments
  */
+import { ClickUpSettings, Segment } from '../types'
 
 const STORAGE_KEY = 'clickup_settings'
 
 /**
  * Get ClickUp settings from localStorage
- * @returns {{ apiToken: string, listId: string } | null}
  */
-export function getClickUpSettings() {
+export function getClickUpSettings(): ClickUpSettings | null {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (!stored) return null
 
     try {
         const settings = JSON.parse(stored)
         if (settings.apiToken && settings.listId) {
-            return settings
+            return settings as ClickUpSettings
         }
         return null
     } catch {
@@ -25,35 +25,29 @@ export function getClickUpSettings() {
 
 /**
  * Save ClickUp settings to localStorage
- * @param {string} apiToken - ClickUp API token
- * @param {string} listId - ClickUp list ID
  */
-export function saveClickUpSettings(apiToken, listId) {
+export function saveClickUpSettings(apiToken: string, listId: string): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiToken, listId }))
 }
 
 /**
  * Clear ClickUp settings from localStorage
  */
-export function clearClickUpSettings() {
+export function clearClickUpSettings(): void {
     localStorage.removeItem(STORAGE_KEY)
 }
 
 /**
  * Check if ClickUp is configured
- * @returns {boolean}
  */
-export function isClickUpConfigured() {
+export function isClickUpConfigured(): boolean {
     return getClickUpSettings() !== null
 }
 
 /**
  * Create a task in ClickUp from a newsletter segment
- * @param {Object} segment - The segment object from Supabase
- * @param {string} issueTitle - The newsletter issue title
- * @returns {Promise<Object>} - Created task data
  */
-export async function createClickUpTask(segment, issueTitle) {
+export async function createClickUpTask(segment: Segment, issueTitle: string): Promise<any> {
     const settings = getClickUpSettings()
 
     if (!settings) {
@@ -73,7 +67,7 @@ export async function createClickUpTask(segment, issueTitle) {
 
     if (segment.links && segment.links.length > 0) {
         description += '**Links:**\n'
-        segment.links.forEach(link => {
+        segment.links.forEach((link: { text?: string, url: string }) => {
             description += `- [${link.text || link.url}](${link.url})\n`
         })
     }

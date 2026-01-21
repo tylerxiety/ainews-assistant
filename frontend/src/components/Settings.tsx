@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
     getClickUpSettings,
     saveClickUpSettings,
     clearClickUpSettings,
-    isClickUpConfigured
 } from '../lib/clickup'
 import './Settings.css'
 
@@ -13,7 +12,7 @@ export default function Settings() {
     const [listId, setListId] = useState('')
     const [isConfigured, setIsConfigured] = useState(false)
     const [showToken, setShowToken] = useState(false)
-    const [saveStatus, setSaveStatus] = useState(null) // 'saved', 'cleared', or null
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'cleared' | null>(null)
 
     // Load existing settings on mount
     useEffect(() => {
@@ -25,7 +24,7 @@ export default function Settings() {
         }
     }, [])
 
-    const handleSave = (e) => {
+    const handleSave = (e: FormEvent) => {
         e.preventDefault()
 
         if (!apiToken.trim() || !listId.trim()) {
