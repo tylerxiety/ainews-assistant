@@ -110,7 +110,7 @@ async def process_newsletter(request: ProcessRequest, background_tasks: Backgrou
 
 
 @app.post("/process-latest")
-async def process_latest_newsletter():
+async def process_latest_newsletter(force: bool = False):
     """
     Discover and process the latest newsletter from RSS feed.
     
@@ -120,6 +120,9 @@ async def process_latest_newsletter():
     2. Checks if this issue has already been processed
     3. If new, triggers processing synchronously (to ensure completion on Cloud Run)
     
+    Args:
+        force: If True, bypass the check for existing issue and re-process.
+
     Returns:
         dict: Processing status - 'skipped' if already processed, 
               'completed' if new issue found and processed, or 'no_new_issue' if RSS fetch failed
@@ -136,7 +139,7 @@ async def process_latest_newsletter():
             }
         
         # Step 2: Check if already processed
-        if processor.check_issue_exists(latest_url):
+        if not force and processor.check_issue_exists(latest_url):
             logger.info(f"Newsletter already processed: {latest_url}")
             return {
                 "status": "skipped",
