@@ -52,9 +52,24 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 - **Always ask permission** before running commands that create, modify, or delete resources
 - Read-only commands (status, list, logs) are fine without asking
 
+## Multi-Agent Environment
+
+This project uses multiple AI coding agents (Claude Code, Antigravity, etc.). To avoid conflicts:
+- Check git status before starting work
+- Pull latest changes frequently
+- Keep changes focused and atomic
+- Coordinate on shared files when possible
+
 ## Collaboration
 
 - Ask before implementing if requirements are unclear
 - Propose approach before big changes
 - Flag risks and tradeoffs explicitly
 - Don't assume requirements — ask clarifying questions
+
+## Maintaining This Document
+
+When you make changes that affect how to work in this codebase, update this file:
+- New tool/framework added → Update Tech Stack
+- New convention established → Add to Conventions
+- Infrastructure change → Update relevant section
