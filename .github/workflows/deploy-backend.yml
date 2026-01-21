@@ -60,5 +60,5 @@ jobs:
           TTS_VOICE_NAME=en-US-Chirp3-HD-Aoede,\
           ALLOWED_ORIGINS=https://ainews-assistant.vercel.app" \
             --timeout 3600 \
-            --memory 1Gi \
+            --memory 2Gi \
             --cpu 1

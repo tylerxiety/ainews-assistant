@@ -127,24 +127,31 @@ class NewsletterProcessor:
                 return segment
 
         # Process all segments concurrently
-        segments_results = await asyncio.gather(
-            *[process_segment(s) for s in segments_data],
-            return_exceptions=True
-        )
+        # Process all segments concurrently and insert in batches
+        tasks = [process_segment(s) for s in segments_data]
+        processed_segments = []
+        batch_size = 50
+        total_inserted = 0
 
-        # Filter out exceptions and log them
-        segments_data = []
-        for i, result in enumerate(segments_results):
-            if isinstance(result, Exception):
-                logger.error(f"Failed to process segment {i}: {result}")
-            else:
-                segments_data.append(result)
+        for future in asyncio.as_completed(tasks):
+            try:
+                segment = await future
+                processed_segments.append(segment)
+                
+                if len(processed_segments) >= batch_size:
+                    self.supabase.table("segments").insert(processed_segments).execute()
+                    total_inserted += len(processed_segments)
+                    logger.info(f"Inserted batch of {len(processed_segments)} segments (total: {total_inserted})")
+                    processed_segments = []
+            except Exception as e:
+                logger.error(f"Failed to process segment: {e}")
 
-        # Store all successfully processed segments
-        if segments_data:
-            self.supabase.table("segments").insert(segments_data).execute()
-            logger.info(f"Stored {len(segments_data)} segments for issue {issue_id}")
-        else:
+        # Insert remaining segments
+        if processed_segments:
+            self.supabase.table("segments").insert(processed_segments).execute()
+            total_inserted += len(processed_segments)
+            logger.info(f"Inserted final batch of {len(processed_segments)} segments for issue {issue_id} (total: {total_inserted})")
+        elif total_inserted == 0:
             logger.warning(f"No segments were successfully processed for issue {issue_id}")
 
         # Mark issue as processed
