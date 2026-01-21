@@ -338,3 +338,69 @@ Return ONLY the cleaned text, no explanations.
             "segment_count": len(segments.data) if segments.data else 0,
             "status": "completed" if issue.get("processed_at") else "processing",
         }
+
+    async def fetch_latest_newsletter_url(self) -> Optional[str]:
+        """
+        Fetch the latest newsletter URL from the AINews RSS feed.
+        
+        This method is used by Cloud Scheduler to discover new issues
+        without hardcoding URLs in the scheduler configuration.
+
+        Returns:
+            str: URL of the latest newsletter issue, or None if fetch fails
+        """
+        rss_url = "https://buttondown.com/ainews/rss"
+        logger.info(f"Fetching RSS feed: {rss_url}")
+        
+        try:
+            response = await self.http_client.get(rss_url)
+            response.raise_for_status()
+            
+            # Parse RSS feed
+            feed = await asyncio.to_thread(feedparser.parse, response.text)
+            
+            if not feed.entries:
+                logger.warning("No entries found in RSS feed")
+                return None
+            
+            # Get the most recent entry's link
+            latest_entry = feed.entries[0]
+            latest_url = latest_entry.get("link")
+            
+            if latest_url:
+                logger.info(f"Found latest newsletter URL: {latest_url}")
+                return latest_url
+            else:
+                logger.warning("Latest RSS entry has no link")
+                return None
+                
+        except httpx.HTTPError as e:
+            logger.error(f"Failed to fetch RSS feed: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error parsing RSS feed: {e}")
+            return None
+
+    def check_issue_exists(self, url: str) -> bool:
+        """
+        Check if an issue with the given URL already exists in the database.
+        
+        Used to prevent duplicate processing when Cloud Scheduler triggers
+        and the newsletter hasn't been updated yet.
+
+        Args:
+            url: Newsletter URL to check
+
+        Returns:
+            bool: True if issue already exists, False otherwise
+        """
+        try:
+            result = self.supabase.table("issues").select("id").eq("url", url).execute()
+            exists = len(result.data) > 0
+            if exists:
+                logger.info(f"Issue already exists for URL: {url}")
+            return exists
+        except Exception as e:
+            logger.error(f"Error checking issue existence: {e}")
+            # Return False to allow processing attempt (will be caught by upsert)
+            return False

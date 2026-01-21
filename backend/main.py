@@ -109,6 +109,62 @@ async def process_newsletter(request: ProcessRequest, background_tasks: Backgrou
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@app.post("/process-latest")
+async def process_latest_newsletter(background_tasks: BackgroundTasks):
+    """
+    Discover and process the latest newsletter from RSS feed.
+    
+    This endpoint is designed to be called by Cloud Scheduler every 6 hours.
+    It automatically:
+    1. Fetches the RSS feed to find the latest newsletter URL
+    2. Checks if this issue has already been processed
+    3. If new, triggers background processing
+    
+    Returns:
+        dict: Processing status - 'skipped' if already processed, 
+              'processing' if new issue found, or 'no_new_issue' if RSS fetch failed
+    """
+    try:
+        # Step 1: Discover latest newsletter URL from RSS
+        latest_url = await processor.fetch_latest_newsletter_url()
+        
+        if not latest_url:
+            logger.warning("No newsletter URL found in RSS feed")
+            return {
+                "status": "no_new_issue",
+                "message": "Could not fetch latest newsletter URL from RSS feed"
+            }
+        
+        # Step 2: Check if already processed
+        if processor.check_issue_exists(latest_url):
+            logger.info(f"Newsletter already processed: {latest_url}")
+            return {
+                "status": "skipped",
+                "url": latest_url,
+                "message": "Newsletter already processed"
+            }
+        
+        # Step 3: Process new newsletter in background
+        issue_id = str(uuid.uuid4())
+        logger.info(f"New newsletter found, starting processing: {latest_url}")
+        
+        background_tasks.add_task(
+            processor.process_newsletter,
+            latest_url,
+            issue_id
+        )
+
+        return {
+            "status": "processing",
+            "issue_id": issue_id,
+            "url": latest_url,
+            "message": "New newsletter found, processing started in background"
+        }
+    except Exception as e:
+        logger.error(f"Error in process_latest_newsletter: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
 @app.get("/issues/{issue_id}")
 async def get_issue_status(issue_id: str):
     """
