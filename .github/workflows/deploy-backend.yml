@@ -55,7 +55,7 @@ jobs:
           GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},\
           GCP_REGION=us-central1,\
           GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }},\
-          GEMINI_MODEL=gemini-2.0-flash-exp,\
+          GEMINI_MODEL=gemini-3-pro-preview,\
           MAX_CONCURRENT_SEGMENTS=5,\
           TTS_VOICE_NAME=en-US-Chirp3-HD-Aoede,\
           ALLOWED_ORIGINS=https://ainews-assistant.vercel.app" \

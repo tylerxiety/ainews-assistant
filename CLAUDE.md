@@ -1,7 +1,10 @@
-# Project Instructions
+# Claude Code Instructions
 
-## Backend
+> **Shared instructions**: See `AGENTS.md` for project overview, stack, and conventions.
 
+## Claude-Specific
+
+### Backend
 - **Virtual environment**: Uses `uv`. Always run backend Python commands with:
   ```bash
   cd backend && uv run <command>

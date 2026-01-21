@@ -69,7 +69,11 @@ export default function Player() {
       // Set up handler to play once audio is ready
       const handleCanPlay = () => {
         if (shouldAutoPlayRef.current) {
-          audio.play().catch(() => { })
+          audio.play().catch((e) => {
+            if (import.meta.env.DEV) {
+              console.log("Autoplay prevented:", e)
+            }
+          })
         }
         audio.removeEventListener('canplay', handleCanPlay)
       }
@@ -123,7 +127,9 @@ export default function Player() {
 
       if (playPromise !== undefined) {
         playPromise.catch(err => {
-          console.error("Play failed:", err)
+          if (import.meta.env.DEV) {
+            console.error("Play failed:", err)
+          }
           // Don't show error for aborts (user clicked pause/next quickly)
           if (err.name !== 'AbortError') {
             setError(`Playback failed: ${err.message}`)

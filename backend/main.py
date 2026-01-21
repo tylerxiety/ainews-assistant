@@ -105,7 +105,8 @@ async def process_newsletter(request: ProcessRequest, background_tasks: Backgrou
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error processing newsletter: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @app.get("/issues/{issue_id}")
@@ -133,7 +134,8 @@ async def get_issue_status(issue_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching issue status: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 # Only register test endpoint in development

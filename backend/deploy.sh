@@ -11,7 +11,7 @@ IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 # TODO: Replace these with your actual values or use Secret Manager
 SUPABASE_URL="${SUPABASE_URL:-https://your-project.supabase.co}"
 GCS_BUCKET_NAME="${GCS_BUCKET_NAME:-your-gcs-bucket-name}"
-GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.0-flash-exp}"
+GEMINI_MODEL="${GEMINI_MODEL:-gemini-3-pro-preview}"
 MAX_CONCURRENT_SEGMENTS="${MAX_CONCURRENT_SEGMENTS:-5}"
 TTS_VOICE_NAME="${TTS_VOICE_NAME:-en-US-Chirp3-HD-Aoede}"
 ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-https://your-frontend-domain.vercel.app}"
