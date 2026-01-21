@@ -110,7 +110,7 @@ async def process_newsletter(request: ProcessRequest, background_tasks: Backgrou
 
 
 @app.post("/process-latest")
-async def process_latest_newsletter(background_tasks: BackgroundTasks):
+async def process_latest_newsletter():
     """
     Discover and process the latest newsletter from RSS feed.
     
@@ -118,11 +118,11 @@ async def process_latest_newsletter(background_tasks: BackgroundTasks):
     It automatically:
     1. Fetches the RSS feed to find the latest newsletter URL
     2. Checks if this issue has already been processed
-    3. If new, triggers background processing
+    3. If new, triggers processing synchronously (to ensure completion on Cloud Run)
     
     Returns:
         dict: Processing status - 'skipped' if already processed, 
-              'processing' if new issue found, or 'no_new_issue' if RSS fetch failed
+              'completed' if new issue found and processed, or 'no_new_issue' if RSS fetch failed
     """
     try:
         # Step 1: Discover latest newsletter URL from RSS
@@ -144,21 +144,18 @@ async def process_latest_newsletter(background_tasks: BackgroundTasks):
                 "message": "Newsletter already processed"
             }
         
-        # Step 3: Process new newsletter in background
+        # Step 3: Process new newsletter synchronously
         issue_id = str(uuid.uuid4())
         logger.info(f"New newsletter found, starting processing: {latest_url}")
         
-        background_tasks.add_task(
-            processor.process_newsletter,
-            latest_url,
-            issue_id
-        )
+        # Wait for processing to complete
+        await processor.process_newsletter(latest_url, issue_id)
 
         return {
-            "status": "processing",
+            "status": "completed",
             "issue_id": issue_id,
             "url": latest_url,
-            "message": "New newsletter found, processing started in background"
+            "message": "New newsletter found and processed successfully"
         }
     except Exception as e:
         logger.error(f"Error in process_latest_newsletter: {str(e)}", exc_info=True)

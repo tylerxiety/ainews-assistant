@@ -39,7 +39,7 @@ MAX_CONCURRENT_SEGMENTS=${MAX_CONCURRENT_SEGMENTS},\
 TTS_VOICE_NAME=${TTS_VOICE_NAME},\
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}" \
   --update-secrets="SUPABASE_SERVICE_KEY=supabase_service_key:latest" \
-  --timeout 300 \
+  --timeout 3600 \
   --memory 1Gi \
   --cpu 1
 
