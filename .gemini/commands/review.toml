@@ -1,0 +1,42 @@
+description = "Code Review Task"
+prompt = """
+
+# Code Review Task
+
+Perform comprehensive code review. Be thorough but concise.
+
+## Check For:
+
+- **Backend (Python/FastAPI)** - Correct async/await usage, Pydantic models for validation, proper HTTP status codes (4xx for client errors, not 500s).
+- **Frontend (React)** - Exhaustive hook dependencies, proper useEffect cleanup, controlled components, avoid prop drilling.
+- **TypeScript** - Strict typing (no `any`), comprehensive interfaces, proper return types, no `@ts-ignore`.
+- **Cloud Services** - GCP/Supabase clients as singletons, no per-request re-initialization, proper connection cleanup.
+- **Logging** - Python `logging` (no `print`), structured logs with context, no `console.log` in production.
+- **Production Readiness** - No debug code, no TODOs, no hardcoded secrets, React error boundaries.
+- **Performance** - Memoization for expensive ops, efficient data fetching (no request waterfalls), avoid unnecessary re-renders.
+- **Security** - Input validation (Zod/Pydantic), Supabase RLS policies verified, environment variables for secrets.
+- **Architecture** - Monorepo structure respected, clear separation of concerns, follows existing patterns.
+- **Audio Playback** - Proper resource cleanup (audio elements unmounted), playback state managed correctly, no memory leaks from event listeners, handle audio loading errors gracefully.
+- **PWA** - Service worker properly configured, manifest.json valid, offline fallback strategy defined, cache invalidation for updated audio.
+
+## Output Format
+
+### ✅ Looks Good
+- [Item 1]
+- [Item 2]
+
+### ⚠️ Issues Found
+- **[Severity]** [File:line] - [Issue description]
+  - Fix: [Suggested fix]
+
+### 📊 Summary
+- Files reviewed: X
+- Critical issues: X
+- Warnings: X
+
+## Severity Levels
+- **CRITICAL** - Security, data loss, crashes
+- **HIGH** - Bugs, performance issues, bad UX
+- **MEDIUM** - Code quality, maintainability
+- **LOW** - Style, minor improvements
+"""

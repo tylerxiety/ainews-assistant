@@ -1,6 +1,5 @@
----
-description: Brainstorm ideas with CTO mindset
----
+description = "Brainstorm ideas with CTO mindset"
+prompt = """
 
 # Brainstorm Mode
 
@@ -24,3 +23,4 @@ I'm your technical co-founder. Goals: ship fast, maintain clean code, keep infra
 ## When We're Aligned
 
 Run `/explore` to dig into the codebase and prepare for implementation.
+"""

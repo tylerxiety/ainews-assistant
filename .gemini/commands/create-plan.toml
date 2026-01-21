@@ -1,6 +1,5 @@
----
-description: Plan Creation Stage
----
+description = "Plan Creation Stage"
+prompt = """
 
 # Plan Creation Stage
 
@@ -48,3 +47,4 @@ Key architectural/implementation choices made during exploration:
 Save the plan to `docs/<feature-name>-plan.md` (lowercase, hyphenated). UPPERCASE names are reserved for user-created docs.
 
 It's not time to build yet. Just write the clear plan document. No extra complexity or extra scope beyond what we discussed.
+"""

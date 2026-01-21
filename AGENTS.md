@@ -14,9 +14,16 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 
 ## Conventions
 
+### Backend
+- **Package manager**: `uv`
+- **Running commands**: Always use `uv run` from the backend directory:
+  ```bash
+  cd backend && uv run <command>
+  ```
+  Example: `cd backend && uv run python main.py`
+
 ### Python
 - Use `logging` module, not `print`
-- DataFrames: `df_xxx` naming (e.g., `df_results`, `df_eval`)
 - Type hints for function signatures
 
 ### React/TypeScript
@@ -27,6 +34,16 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 ### General
 - Keep solutions simple — don't over-engineer
 - No debug code or TODOs in commits
+
+### Testing & Debugging
+- **Do NOT create standalone test scripts** (e.g., `test_*.py`, `simple_test.py`, `check_*.py`)
+- To verify functionality works: use existing API endpoints, REPL, or `curl`
+- For debugging: add temporary logging, then remove it — don't create new files
+- If a proper test suite is needed, discuss with user first before setting up pytest/testing infrastructure
+
+### Documentation
+- Agent-created dev docs (plans, specs) go in `docs/` with **lowercase** names (e.g., `auth-plan.md`)
+- UPPERCASE names (e.g., `SETUP.md`) are reserved for user-created docs
 
 ### Credentials & Infrastructure
 - **GCP**: Uses Application Default Credentials (ADC) — no explicit keys needed
