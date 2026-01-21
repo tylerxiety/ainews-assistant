@@ -211,7 +211,7 @@ Build a PWA that converts AINews newsletter into listenable audio with clean TTS
   - [x] 🟩 Deploy to Cloud Run (newsletter-processor)
   - [x] 🟩 Configure environment variables in Cloud Run
   - [x] 🟩 Test deployed endpoint (https://newsletter-processor-872179428244.us-central1.run.app)
-  - [ ] 🟨 Set up Cloud Scheduler
+  - [x] 🟩 Set up Cloud Scheduler (every 6 hours, `newsletter-processor-trigger`)
 
 - [x] 🟩 **Step 21: Frontend Deployment**
   - [x] 🟩 Configure Vercel project (ainews-assistant)
@@ -235,13 +235,8 @@ Build a PWA that converts AINews newsletter into listenable audio with clean TTS
   - [x] 🟩 Create user guide for ClickUp setup
 
 ## Out of Scope for MVP
-- User authentication
-- Multiple newsletters support
-- Offline download of episodes
 - Voice commands
 - Interrupt-to-ask features
-- Multi-user support
-- Custom voice selection UI
 
 ## Success Criteria
 - ✅ **Can process one newsletter issue automatically** - Working! (13 segments processed)
