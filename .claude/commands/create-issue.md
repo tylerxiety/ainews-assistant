@@ -4,6 +4,8 @@ description: Create Issue
 
 # Create Issue
 
+**ClickUp List ID:** `90142881671`
+
 User is mid-development and thought of a bug/feature/improvement. Capture it fast so they can keep working.
 
 ## Your Goal
@@ -40,3 +42,14 @@ Keep questions brief. One message with 2-3 targeted questions beats multiple bac
 - Default priority: normal, effort: medium (ask only if unclear)
 - Max 3 files in context - most relevant only
 - Bullet points over paragraphs
+
+## Creating the Task
+
+Use the `clickup_create_task` MCP tool with:
+- `list_id`: `901414073682`
+- `name`: Clear, actionable title
+- `markdown_description`: Include TL;DR, current vs expected, relevant files, risks/notes
+- `priority`: urgent/high/normal/low
+- `tags`: Use for type (bug/feature/improvement) and effort (small/medium/large)
+
+After creation, share the task URL with the user.
