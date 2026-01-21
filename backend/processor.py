@@ -105,54 +105,137 @@ class NewsletterProcessor:
             ).execute()
             issue_id = issue_result.data[0]["id"]
 
-        # Delete old segments if reprocessing
-        self.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
+        # Delete old groups (cascades to segments) if reprocessing
+        self.supabase.table("topic_groups").delete().eq("issue_id", issue_id).execute()
 
-        # Process segments in parallel with rate limiting
-        semaphore = asyncio.Semaphore(self.max_concurrent_segments)
+        # Group segments
+        groups = self._group_segments(segments_data)
+        logger.info(f"Created {len(groups)} topic groups")
 
-        async def process_segment(segment: Dict) -> Dict:
+        # Process groups in parallel
+        semaphore = asyncio.Semaphore(self.max_concurrent_segments) # Reuse existing semaphore setting
+
+        async def process_group(group: Dict) -> Dict:
             async with semaphore:
-                segment["issue_id"] = issue_id
-                # Clean text with Gemini
-                clean_text = await self._clean_text_for_tts(segment["content_raw"])
-                segment["content_clean"] = clean_text
-                # Generate audio with TTS
+                group["issue_id"] = issue_id
+                
+                # 1. Prepare texts for cleaning
+                # Include label as first item if present
+                texts_to_clean = []
+                if group["label"]:
+                    texts_to_clean.append(group["label"])
+                
+                for seg in group["segments"]:
+                    texts_to_clean.append(seg["content_raw"])
+                
+                # 2. Batch clean texts
+                cleaned_texts = await self._clean_texts_batch(texts_to_clean)
+                
+                # 3. Assign back to content and prepare for audio
+                # Handle label
+                final_audio_texts = []
+                idx_offset = 0
+                
+                if group["label"]:
+                    # Label is the first cleaned text
+                    # We can prefix it with "Now:" or similar if needed, but Gemini handles cleaning
+                    final_audio_texts.append(cleaned_texts[0])
+                    idx_offset = 1
+                
+                # Handle segments
+                for i, seg in enumerate(group["segments"]):
+                    clean = cleaned_texts[i + idx_offset]
+                    seg["content_clean"] = clean
+                    final_audio_texts.append(clean)
+                
+                # 4. Generate Combined Audio (Step 5)
+                # Concatenate with pauses
+                # Using triple dot ... or explicit break logic in cleaning
+                combined_text = " ... ".join(final_audio_texts)
+                
                 audio_url, duration_ms = await self._generate_audio(
-                    clean_text, issue_id, segment["order_index"]
+                    combined_text, issue_id, group["order_index"]
                 )
-                segment["audio_url"] = audio_url
-                segment["audio_duration_ms"] = duration_ms
-                logger.debug(f"Processed segment {segment['order_index']}")
-                return segment
+                
+                group["audio_url"] = audio_url
+                group["audio_duration_ms"] = duration_ms
+                
+                return group
 
-        # Process all segments concurrently
-        # Process all segments concurrently and insert in batches
-        tasks = [process_segment(s) for s in segments_data]
-        processed_segments = []
-        batch_size = 50
-        total_inserted = 0
+        # Execute group processing
+        processed_groups = []
+        failed_groups = []
+        tasks = [process_group(g) for g in groups]
 
         for future in asyncio.as_completed(tasks):
             try:
-                segment = await future
-                processed_segments.append(segment)
-                
-                if len(processed_segments) >= batch_size:
-                    self.supabase.table("segments").insert(processed_segments).execute()
-                    total_inserted += len(processed_segments)
-                    logger.info(f"Inserted batch of {len(processed_segments)} segments (total: {total_inserted})")
-                    processed_segments = []
+                p_group = await future
+                processed_groups.append(p_group)
+                logger.info(f"Processed group {p_group['order_index']}")
             except Exception as e:
-                logger.error(f"Failed to process segment: {e}")
+                failed_groups.append(str(e))
+                logger.error(f"Failed to process group: {e}")
 
-        # Insert remaining segments
-        if processed_segments:
-            self.supabase.table("segments").insert(processed_segments).execute()
-            total_inserted += len(processed_segments)
-            logger.info(f"Inserted final batch of {len(processed_segments)} segments for issue {issue_id} (total: {total_inserted})")
-        elif total_inserted == 0:
-            logger.warning(f"No segments were successfully processed for issue {issue_id}")
+        # Check if too many groups failed (more than 50%)
+        if failed_groups and len(failed_groups) > len(groups) / 2:
+            raise RuntimeError(
+                f"Too many groups failed ({len(failed_groups)}/{len(groups)}): {failed_groups[:3]}"
+            )
+
+        if failed_groups:
+            logger.warning(
+                f"{len(failed_groups)}/{len(groups)} groups failed, continuing with {len(processed_groups)} successful groups"
+            )
+
+        # Sort by order_index to be safe
+        processed_groups.sort(key=lambda x: x["order_index"])
+
+        # Insert into DB
+        # 1. Insert Groups
+        groups_payload = [{
+            "issue_id": issue_id,
+            "label": g["label"],
+            "audio_url": g["audio_url"],
+            "audio_duration_ms": g["audio_duration_ms"],
+            "order_index": g["order_index"]
+        } for g in processed_groups]
+
+        if groups_payload:
+            groups_resp = self.supabase.table("topic_groups").insert(groups_payload).execute()
+            inserted_groups = groups_resp.data
+
+            # Validate all groups were inserted
+            if len(inserted_groups) != len(groups_payload):
+                logger.error(
+                    f"Inserted {len(inserted_groups)} groups, expected {len(groups_payload)}"
+                )
+
+            # Create a map of order_index -> group_id (safe key, not relying on insertion order)
+            group_id_map = {g["order_index"]: g["id"] for g in inserted_groups}
+
+            # Prepare Segments
+            all_segments = []
+            for g in processed_groups:
+                g_id = group_id_map.get(g["order_index"])
+                if g_id is None:
+                    logger.error(f"No group_id found for order_index {g['order_index']}, skipping segments")
+                    continue
+                for seg in g["segments"]:
+                    seg["issue_id"] = issue_id
+                    seg["topic_group_id"] = g_id
+                    # Ensure all required fields
+                    if "content_clean" not in seg:
+                        seg["content_clean"] = seg["content_raw"]
+                    all_segments.append(seg)
+            
+            # 3. Batch Insert Segments
+            if all_segments:
+                 # Batch insert
+                batch_size = 50
+                for i in range(0, len(all_segments), batch_size):
+                    batch = all_segments[i:i + batch_size]
+                    self.supabase.table("segments").insert(batch).execute()
+                logger.info(f"Inserted {len(all_segments)} segments for issue {issue_id}")
 
         # Mark issue as processed
         self.supabase.table("issues").update(
@@ -201,8 +284,8 @@ class NewsletterProcessor:
         segments_data = []
         order_index = 0
 
-        # Parse AINews structure: h1/h2/h3 headers followed by list items
-        for element in article.find_all(["h1", "h2", "h3", "li"]):
+        # Parse AINews structure: h1/h2/h3 headers followed by list items, and p strong for topic headers
+        for element in article.find_all(["h1", "h2", "h3", "li", "p"]):
             if element.name in ["h1", "h2", "h3"]:
                 # Section header
                 text = element.get_text(strip=True)
@@ -214,6 +297,24 @@ class NewsletterProcessor:
                         "order_index": order_index,
                     })
                     order_index += 1
+
+            elif element.name == "p":
+                # Detect topic headers: <p><strong>Topic Title</strong></p>
+                # Must be strictly just the strong tag inside the p tag
+                strong = element.find("strong")
+                text = element.get_text(strip=True)
+                
+                if strong and text:
+                    strong_text = strong.get_text(strip=True)
+                    # Check if the text matches strong text (ignoring whitespace)
+                    if text == strong_text:
+                        segments_data.append({
+                            "segment_type": "topic_header",
+                            "content_raw": text,
+                            "links": [],
+                            "order_index": order_index,
+                        })
+                        order_index += 1
 
             elif element.name == "li":
                 # News item
@@ -236,38 +337,115 @@ class NewsletterProcessor:
 
         return issue_data, segments_data
 
-    async def _clean_text_for_tts(self, raw_text: str) -> str:
+    def _group_segments(self, segments_data: List[Dict]) -> List[Dict]:
         """
-        Clean text for natural TTS using Gemini.
-
-        Args:
-            raw_text: Original text with links, mentions, etc.
-
-        Returns:
-            str: Cleaned text for TTS
+        Group segments into topic groups.
+        Topic Headers and Section Headers start new groups and become labels.
+        Items follow the preceding header.
         """
+        groups = []
+        current_group = None
+        group_order = 0
+        
+        for seg in segments_data:
+            stype = seg["segment_type"]
+            
+            if stype in ["topic_header", "section_header"]:
+                # Start new group using this header as label
+                current_group = {
+                    "label": seg["content_raw"],
+                    "segments": [],
+                    "order_index": group_order,
+                    "audio_url": None,
+                    "audio_duration_ms": 0
+                }
+                groups.append(current_group)
+                group_order += 1
+            
+            elif stype == "item":
+                if current_group is None:
+                    # Create anonymous group for loose items
+                    current_group = {
+                        "label": "General",
+                        "segments": [],
+                        "order_index": group_order,
+                        "audio_url": None,
+                        "audio_duration_ms": 0
+                    }
+                    groups.append(current_group)
+                    group_order += 1
+                
+                current_group["segments"].append(seg)
+        
+        # Filter out empty groups (headers with no items waste API calls)
+        groups = [g for g in groups if g["segments"]]
+
+        # Re-index after filtering
+        for i, g in enumerate(groups):
+            g["order_index"] = i
+
+        return groups
+
+    async def _clean_texts_batch(self, texts: List[str]) -> List[str]:
+        """
+        Clean a list of texts using Gemini in one call.
+        """
+        if not texts:
+            return []
+
         prompt = """
-Clean the following newsletter text for text-to-speech. Apply these rules:
+Clean the following list of newsletter texts for text-to-speech.
+Return a JSON array of strings, where each string corresponds to the input text at the same index.
 
+Rules:
 1. Replace "@username" with "[username] tweeted"
 2. Replace "/r/subreddit" with "the [subreddit] subreddit"
-3. For markdown links [text](url), keep only the text, remove the URL
-4. If this is a section header, prefix with "Now:"
-5. Remove any other formatting that sounds unnatural when read aloud
-6. Keep the text conversational and natural
+3. For markdown links [text](url), keep only the text
+4. If a text seems to be a header, keep it conversational (e.g. prefix with "Now:")
+5. Keep natural
+6. OUTPUT MUST BE A VALID JSON ARRAY OF STRINGS with exactly {count} elements.
 
-<text_to_clean>
-{raw_text}
-</text_to_clean>
+<texts_to_clean>
+{texts_json}
+</texts_to_clean>
+""".format(texts_json=json.dumps(texts), count=len(texts))
 
-Return ONLY the cleaned text, no explanations.
-""".format(raw_text=raw_text)
+        try:
+            response = await asyncio.to_thread(
+                self.gemini_model.generate_content,
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
+            )
 
-        response = await asyncio.to_thread(
-            self.gemini_model.generate_content,
-            prompt
-        )
-        return response.text.strip()
+            # Parse response, handling potential markdown wrapping
+            response_text = response.text.strip()
+            if response_text.startswith("```"):
+                # Remove markdown code block wrapper
+                lines = response_text.split("\n")
+                # Remove first line (```json) and last line (```)
+                response_text = "\n".join(lines[1:-1])
+
+            cleaned = json.loads(response_text)
+
+            # Validate response length matches input
+            if not isinstance(cleaned, list):
+                logger.error(f"Gemini returned non-list: {type(cleaned)}. Returning raw texts.")
+                return texts
+
+            if len(cleaned) != len(texts):
+                logger.error(
+                    f"Gemini returned {len(cleaned)} items, expected {len(texts)}. Returning raw texts."
+                )
+                return texts
+
+            return cleaned
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Gemini JSON response: {e}. Returning raw texts.")
+            return texts
+        except Exception as e:
+            logger.error(f"Batch cleaning failed: {e}. Returning raw texts.")
+            return texts
+
 
     async def _generate_audio(
         self, text: str, issue_id: str, segment_index: int

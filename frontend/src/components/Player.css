@@ -448,3 +448,57 @@
     padding: 2px 6px;
   }
 }
+
+/* Topic Group Styles */
+.topic-group {
+  display: block;
+  cursor: pointer;
+}
+
+.topic-group .group-content {
+  width: 100%;
+}
+
+.group-title {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  border-bottom: 1px solid #333;
+  padding-bottom: 8px;
+}
+
+.group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.group-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group-item p {
+  line-height: 1.6;
+  color: #d4d4d8;
+  font-size: 0.95rem;
+  padding-right: 48px;
+  /* Space for bookmark button */
+}
+
+/* Position bookmark button absolutely within the item */
+.group-item .bookmark-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 32px;
+  height: 32px;
+}
+
+/* Adjust segment links spacing */
+.group-item .segment-links {
+  margin-top: 4px;
+}

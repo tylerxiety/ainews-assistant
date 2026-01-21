@@ -52,7 +52,7 @@ export async function fetchSegments(issueId: string): Promise<Segment[]> {
 }
 
 /**
- * Fetch issue with all its segments
+ * Fetch issue with all its segments (legacy, flat list)
  */
 export async function fetchIssueWithSegments(issueId: string): Promise<{ issue: Issue | null; segments: Segment[] }> {
   const [issue, segments] = await Promise.all([
@@ -60,6 +60,38 @@ export async function fetchIssueWithSegments(issueId: string): Promise<{ issue: 
     fetchSegments(issueId),
   ])
   return { issue, segments }
+}
+
+/**
+ * Fetch issue with topic groups and nested segments
+ */
+import { TopicGroup } from '../types'
+
+export async function fetchIssueWithGroups(issueId: string): Promise<{ issue: Issue | null; groups: TopicGroup[] }> {
+  const issuePromise = fetchIssue(issueId)
+
+  const groupsPromise = supabase
+    .from('topic_groups')
+    .select('*, segments(*)')
+    .eq('issue_id', issueId)
+    .order('order_index', { ascending: true })
+
+  const [issue, groupsResponse] = await Promise.all([issuePromise, groupsPromise])
+
+  if (groupsResponse.error) throw groupsResponse.error
+
+  const groups = groupsResponse.data as TopicGroup[]
+
+  // Sort nested segments
+  if (groups) {
+    groups.forEach(g => {
+      if (g.segments) {
+        g.segments.sort((a, b) => a.order_index - b.order_index)
+      }
+    })
+  }
+
+  return { issue, groups }
 }
 
 /**

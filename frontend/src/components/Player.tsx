@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { fetchIssueWithSegments, fetchBookmarks, createBookmark } from '../lib/supabase'
+import { fetchIssueWithGroups, fetchBookmarks, createBookmark } from '../lib/supabase'
 import { isClickUpConfigured, createClickUpTask } from '../lib/clickup'
-import { Issue, Segment } from '../types'
+import { Issue, Segment, TopicGroup } from '../types'
 import Loading from './Loading'
 import './Player.css'
 
@@ -11,7 +11,7 @@ const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
 export default function Player() {
   const { issueId } = useParams<{ issueId: string }>()
   const [issue, setIssue] = useState<Issue | null>(null)
-  const [segments, setSegments] = useState<Segment[]>([])
+  const [groups, setGroups] = useState<TopicGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,23 +23,24 @@ export default function Player() {
   // Audio state
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const shouldAutoPlayRef = useRef(false)
-  const segmentRefs = useRef<(HTMLDivElement | null)[]>([])
+  const groupRefs = useRef<(HTMLDivElement | null)[]>([])
   const hasInteractedRef = useRef(false) // Track if user has interacted (to skip initial scroll)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0)
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(0)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
 
-  // Load issue, segments, and bookmarks
+  // Load issue, groups, and bookmarks
   useEffect(() => {
     async function loadData() {
       if (!issueId) return
 
       try {
-        const { issue, segments } = await fetchIssueWithSegments(issueId)
+        const { issue, groups } = await fetchIssueWithGroups(issueId)
         setIssue(issue)
-        setSegments(segments.filter((s) => s.audio_url)) // Only segments with audio
+        // Only groups with audio
+        setGroups(groups.filter((g) => g.audio_url))
 
         // Load existing bookmarks
         try {
@@ -60,9 +61,9 @@ export default function Player() {
     loadData()
   }, [issueId])
 
-  // Set audio source when current segment changes
+  // Set audio source when current group changes
   useEffect(() => {
-    if (audioRef.current && segments[currentSegmentIndex]?.audio_url) {
+    if (audioRef.current && groups[currentGroupIndex]?.audio_url) {
       const audio = audioRef.current
 
       // Reset time display while loading
@@ -82,14 +83,14 @@ export default function Player() {
       }
 
       audio.addEventListener('canplay', handleCanPlay)
-      audio.src = segments[currentSegmentIndex].audio_url || ''
+      audio.src = groups[currentGroupIndex].audio_url || ''
       audio.load()
 
       return () => {
         audio.removeEventListener('canplay', handleCanPlay)
       }
     }
-  }, [currentSegmentIndex, segments, loading])
+  }, [currentGroupIndex, groups, loading])
 
   // Update playback rate when speed changes
   useEffect(() => {
@@ -98,23 +99,23 @@ export default function Player() {
     }
   }, [playbackSpeed])
 
-  // Clear refs when segments change to prevent memory leaks
+  // Clear refs when groups change
   useEffect(() => {
-    segmentRefs.current = segmentRefs.current.slice(0, segments.length)
-  }, [segments])
+    groupRefs.current = groupRefs.current.slice(0, groups.length)
+  }, [groups])
 
-  // Auto-scroll to current segment (only after user interaction)
+  // Auto-scroll to current group (only after user interaction)
   useEffect(() => {
     if (!hasInteractedRef.current) return
 
-    const currentRef = segmentRefs.current[currentSegmentIndex]
+    const currentRef = groupRefs.current[currentGroupIndex]
     if (currentRef) {
       currentRef.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       })
     }
-  }, [currentSegmentIndex])
+  }, [currentGroupIndex])
 
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     const target = e.target as HTMLAudioElement
@@ -133,7 +134,6 @@ export default function Player() {
           if (import.meta.env.DEV) {
             console.error("Play failed:", err)
           }
-          // Don't show error for aborts (user clicked pause/next quickly)
           if (err.name !== 'AbortError') {
             setError(`Playback failed: ${err.message}`)
           }
@@ -161,11 +161,10 @@ export default function Player() {
   }
 
   const handleEnded = () => {
-    // Move to next segment
-    if (currentSegmentIndex < segments.length - 1) {
-      // Keep autoplay enabled for continuous playback
+    // Move to next group
+    if (currentGroupIndex < groups.length - 1) {
       shouldAutoPlayRef.current = true
-      setCurrentSegmentIndex(currentSegmentIndex + 1)
+      setCurrentGroupIndex(currentGroupIndex + 1)
     } else {
       shouldAutoPlayRef.current = false
       setIsPlaying(false)
@@ -193,9 +192,9 @@ export default function Player() {
     }
   }
 
-  const handleSegmentClick = (index: number) => {
+  const handleGroupClick = (index: number) => {
     hasInteractedRef.current = true
-    setCurrentSegmentIndex(index)
+    setCurrentGroupIndex(index)
     if (!isPlaying) {
       handlePlay()
     }
@@ -216,7 +215,7 @@ export default function Player() {
 
   // Handle bookmark click
   const handleBookmark = async (e: React.MouseEvent, segment: Segment) => {
-    e.stopPropagation() // Don't trigger segment click
+    e.stopPropagation() // Don't trigger group click
 
     if (!issueId || !issue) return
 
@@ -245,7 +244,6 @@ export default function Player() {
       // Update local state
       setBookmarkedSegments(prev => new Set([...prev, segment.id]))
     } catch (err: any) {
-      // Log error in development only
       if (import.meta.env.DEV) {
         console.error('Bookmark failed:', err)
       }
@@ -332,7 +330,7 @@ export default function Player() {
         <button
           className="play-pause-btn"
           onClick={handlePlayPause}
-          disabled={segments.length === 0}
+          disabled={groups.length === 0}
         >
           {isPlaying ? '⏸' : '▶'}
         </button>
@@ -353,63 +351,65 @@ export default function Player() {
         </button>
 
         <span className="segment-indicator">
-          {segments.length > 0 ? `${currentSegmentIndex + 1}/${segments.length}` : '0/0'}
+          {groups.length > 0 ? `${currentGroupIndex + 1}/${groups.length}` : '0/0'}
         </span>
       </div>
 
-      {/* Segments list */}
+      {/* Topic Groups List */}
       <div className="segments-list">
-        {segments.length === 0 ? (
+        {groups.length === 0 ? (
           <p className="no-segments">No audio segments available.</p>
         ) : (
-          segments.map((segment, index) => (
+          groups.map((group, index) => (
             <div
-              key={segment.id}
-              ref={(el) => { segmentRefs.current[index] = el }}
-              className={`segment ${index === currentSegmentIndex ? 'active' : ''} ${segment.segment_type === 'section_header' ? 'header' : 'item'
-                }`}
-              onClick={() => handleSegmentClick(index)}
+              key={group.id}
+              ref={(el) => { groupRefs.current[index] = el }}
+              className={`segment topic-group ${index === currentGroupIndex ? 'active' : ''}`}
+              onClick={() => handleGroupClick(index)}
             >
-              <div className="segment-content">
-                {segment.segment_type === 'section_header' ? (
-                  <h3>{segment.content_raw}</h3>
-                ) : (
-                  <p>{segment.content_raw}</p>
-                )}
-                {segment.links && segment.links.length > 0 && (
-                  <div className="segment-links">
-                    {segment.links.map((link, i) => (
-                      <a
-                        key={i}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {link.text || 'Link'}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <div className="group-content">
+                {group.label && <h3 className="group-title">{group.label}</h3>}
 
-              {/* Bookmark button - only show for items, not headers */}
-              {segment.segment_type !== 'section_header' && (
-                <button
-                  className={`bookmark-btn ${bookmarkedSegments.has(segment.id) ? 'bookmarked' : ''}`}
-                  onClick={(e) => handleBookmark(e, segment)}
-                  disabled={bookmarkingSegment === segment.id || bookmarkedSegments.has(segment.id)}
-                  title={bookmarkedSegments.has(segment.id) ? 'Bookmarked to ClickUp' : 'Bookmark to ClickUp'}
-                >
-                  {bookmarkingSegment === segment.id ? (
-                    <span className="bookmark-loading">⏳</span>
-                  ) : bookmarkedSegments.has(segment.id) ? (
-                    <span className="bookmark-done">✓</span>
-                  ) : (
-                    <span className="bookmark-icon">📌</span>
-                  )}
-                </button>
-              )}
+                <div className="group-items">
+                  {group.segments.map((segment) => (
+                    <div key={segment.id} className="group-item">
+                      <p>{segment.content_raw}</p>
+
+                      {segment.links && segment.links.length > 0 && (
+                        <div className="segment-links">
+                          {segment.links.map((link, i) => (
+                            <a
+                              key={i}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {link.text || 'Link'}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Bookmark button */}
+                      <button
+                        className={`bookmark-btn ${bookmarkedSegments.has(segment.id) ? 'bookmarked' : ''}`}
+                        onClick={(e) => handleBookmark(e, segment)}
+                        disabled={bookmarkingSegment === segment.id || bookmarkedSegments.has(segment.id)}
+                        title={bookmarkedSegments.has(segment.id) ? 'Bookmarked to ClickUp' : 'Bookmark to ClickUp'}
+                      >
+                        {bookmarkingSegment === segment.id ? (
+                          <span className="bookmark-loading">⏳</span>
+                        ) : bookmarkedSegments.has(segment.id) ? (
+                          <span className="bookmark-done">✓</span>
+                        ) : (
+                          <span className="bookmark-icon">📌</span>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ))
         )}
