@@ -349,7 +349,7 @@ Return ONLY the cleaned text, no explanations.
         Returns:
             str: URL of the latest newsletter issue, or None if fetch fails
         """
-        rss_url = "https://buttondown.com/ainews/rss"
+        rss_url = "https://news.smol.ai/rss.xml"
         logger.info(f"Fetching RSS feed: {rss_url}")
         
         try:
