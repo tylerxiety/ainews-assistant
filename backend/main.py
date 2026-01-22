@@ -67,10 +67,37 @@ class ProcessRequest(BaseModel):
     url: HttpUrl
 
 
+class AskRequest(BaseModel):
+    issue_id: str
+    group_id: str
+    question: str
+
+
 @app.get("/")
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "newsletter-audio-processor"}
+
+
+@app.post("/ask")
+async def ask_question(request: AskRequest):
+    """
+    Ask a question about a specific topic group.
+    """
+    try:
+        answer_text, audio_url = await processor.ask(
+            request.question,
+            request.issue_id,
+            request.group_id
+        )
+        
+        return {
+            "answer": answer_text,
+            "audio_url": audio_url
+        }
+    except Exception as e:
+        logger.error(f"Error in ask_question: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error") from None
 
 
 @app.post("/process")

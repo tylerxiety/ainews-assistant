@@ -5,6 +5,7 @@ import asyncio
 import io
 import json
 import logging
+import uuid
 from datetime import UTC, datetime
 
 import feedparser
@@ -249,7 +250,9 @@ class NewsletterProcessor:
 
     def _parse_newsletter(self, html_content: str, url: str) -> tuple[dict, list[dict]]:
         """
-        Parse AINews newsletter HTML into structured segments.
+        Parse newsletter HTML into structured segments.
+        Supports various formats (Substack, Buttondown, generic blogs) by detecting
+        common content containers and headers.
 
         Args:
             html_content: Raw HTML
@@ -261,7 +264,16 @@ class NewsletterProcessor:
         soup = BeautifulSoup(html_content, "html.parser")
 
         # Extract issue metadata
-        title = soup.find("title").text if soup.find("title") else "Untitled"
+        title_tag = soup.find("title")
+        # Try to find h1 as title if title tag is generic
+        h1 = soup.find("h1")
+        
+        title = "Untitled Newsletter"
+        if title_tag and title_tag.text.strip():
+            title = title_tag.text.strip()
+        elif h1 and h1.text.strip():
+            title = h1.text.strip()
+
         published_at = datetime.now(UTC).isoformat()
 
         issue_data = {
@@ -270,66 +282,113 @@ class NewsletterProcessor:
             "published_at": published_at,
         }
 
-        # Find main article content
-        article = soup.find("article") or soup.find("div", class_=lambda x: x and "content" in x)
+        # 1. Detect Main Content Container
+        # Priority: <article> -> common content classes -> <body>
+        article = soup.find("article")
+        
+        if not article:
+            content_classes = [
+                "content", "entry-content", "post-content", "main-content", 
+                "newsletter-content", "issue-content", "main"
+            ]
+            for cls in content_classes:
+                article = soup.find("div", class_=lambda x, c=cls: x and c in x)
+                if article:
+                    break
+        
+        if not article:
+            article = soup.find("body")
 
         if not article:
-            # Fallback to body if no article found
-            article = soup.find("body")
+            # Last resort
+            article = soup
 
         segments_data = []
         order_index = 0
+        
+        # 2. Iterate through elements to build segments
+        # We want to segment by Headers (H1-H4)
+        # Everything between headers belongs to the previous header's group (conceptually)
+        # But here we just flatten into segments: Header Segment -> Item Segment -> Item Segment...
+        
+        # Helper to add segment
+        def add_segment(text, seg_type, links=None):
+            nonlocal order_index
+            if not text:
+                return
+            segments_data.append({
+                "segment_type": seg_type,
+                "content_raw": text,
+                "links": links or [],
+                "order_index": order_index,
+            })
+            order_index += 1
 
-        # Parse AINews structure: h1/h2/h3 headers followed by list items, and p strong for topic headers
-        for element in article.find_all(["h1", "h2", "h3", "li", "p"]):
-            if element.name in ["h1", "h2", "h3"]:
-                # Section header
-                text = element.get_text(strip=True)
-                if text:  # Only add non-empty headers
-                    segments_data.append({
-                        "segment_type": "section_header",
-                        "content_raw": text,
-                        "links": [],
-                        "order_index": order_index,
-                    })
-                    order_index += 1
+        # Flatten the interesting elements
+        # We look for direct children or just all relevant tags in order?
+        # Traversing all tags in order is safer for preservation
+        
+        # Tags we care about for content
+        content_tags = ["p", "li", "div", "blockquote"]
+        header_tags = ["h1", "h2", "h3", "h4", "h5", "h6"]
+        
+        for element in article.find_all(header_tags + content_tags):
+            # Skip if inside another element we already processed? 
+            # find_all returns nested elements too.
+            
+            # Fix duplication: If this element acts as a container for other interesting elements,
+            # let the loop handle the children instead.
+            if element.name in ["div", "blockquote", "li"]:
+                # If this element contains any of our target tags, skip it to avoid double-counting
+                # (e.g. skip the DIV so we can process the P inside it)
+                if element.find(header_tags + content_tags):
+                    continue
 
-            elif element.name == "p":
-                # Detect topic headers: <p><strong>Topic Title</strong></p>
-                # Must be strictly just the strong tag inside the p tag
-                strong = element.find("strong")
-                text = element.get_text(strip=True)
+            # Get text content
+            text = element.get_text(strip=True)
+            if not text:
+                continue
+
+            # Skip elements that are likely menus or footers based on class/id
+            # (Simple naive check)
+            cls_str = " ".join(element.get("class", []))
+            if any(x in cls_str for x in ["nav", "menu", "footer", "subscribe", "button", "share"]):
+                continue
+
+            if element.name in header_tags:
+                add_segment(text, "section_header")
+            
+            elif element.name in content_tags:
+                # Heuristic: Check if it looks like a header (short, strong, no punctuation at end?)
+                # AINews specific: <p><strong>Topic</strong></p>
+                is_header_like = False
+                if element.name == "p":
+                    strong = element.find("strong")
+                    if strong and strong.get_text(strip=True) == text:
+                        is_header_like = True
                 
-                if strong and text:
-                    strong_text = strong.get_text(strip=True)
-                    # Check if the text matches strong text (ignoring whitespace)
-                    if text == strong_text:
-                        segments_data.append({
-                            "segment_type": "topic_header",
-                            "content_raw": text,
-                            "links": [],
-                            "order_index": order_index,
-                        })
-                        order_index += 1
-
-            elif element.name == "li":
-                # News item
-                text = element.get_text(strip=True)
-                if text and len(text) > 20:  # Filter out very short items
+                if is_header_like:
+                    add_segment(text, "topic_header")
+                else:
+                    # It's content
                     # Extract links
                     links = [
                         {"text": a.get_text(strip=True), "url": a.get("href")}
                         for a in element.find_all("a")
-                        if a.get("href")  # Only include links with href
+                        if a.get("href")
                     ]
+                    
+                    # For long content, we might want to split or just keep as one item
+                    # Filter out very short UI text
+                    if len(text) > 10:
+                        add_segment(text, "item", links)
 
-                    segments_data.append({
-                        "segment_type": "item",
-                        "content_raw": text,
-                        "links": links,
-                        "order_index": order_index,
-                    })
-                    order_index += 1
+        # 3. Fallback: If no segments found (e.g. text directly in div), grab all text
+        if not segments_data:
+            text = article.get_text(strip=True)
+            if text:
+                add_segment(text[:100] + "...", "section_header") # Fake header
+                add_segment(text, "item")
 
         return issue_data, segments_data
 
@@ -488,6 +547,88 @@ Rules:
         duration_ms = int(audio.info.length * 1000)
 
         return audio_url, duration_ms
+
+    async def ask(self, question: str, issue_id: str, group_id: str) -> tuple[str, str]:
+        """
+        Answer a question about a specific topic group in a newsletter issue.
+        
+        Args:
+            question: User's question
+            issue_id: Issue UUID
+            group_id: Topic Group UUID
+            
+        Returns:
+            tuple: (answer_text, audio_url)
+        """
+        # 1. Fetch context (segments) for the group
+        segments_resp = self.supabase.table("segments") \
+            .select("content_clean, content_raw") \
+            .eq("topic_group_id", group_id) \
+            .order("order_index") \
+            .execute()
+            
+        if not segments_resp.data:
+            return "I couldn't find the content for this section.", ""
+            
+        # Combine text
+        context_text = "\n".join([
+            s.get("content_clean") or s.get("content_raw", "") 
+            for s in segments_resp.data
+        ])
+        
+        # 2. Call Gemini
+        prompt = f"""
+You are an AI assistant helping a user listen to a newsletter.
+The user is listening to a section with the following content:
+
+<content>
+{context_text}
+</content>
+
+The user asks: "{question}"
+
+Answer the question based ONLY on the content above. 
+Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
+Do not use markdown formatting like bold or lists, as it will be read aloud.
+If the answer is not in the content, say so politely.
+"""
+        response = await asyncio.to_thread(
+            self.gemini_model.generate_content,
+            prompt
+        )
+        answer_text = response.text.strip()
+        
+        # 3. Generate Audio
+        # Use a unique ID for the Q&A audio file
+        qa_id = str(uuid.uuid4())
+        
+        # We'll use a specific folder for Q&A
+        blob_name = f"{issue_id}/qna/{qa_id}.mp3"
+        
+        synthesis_input = texttospeech.SynthesisInput(text=answer_text)
+        
+        # Generate audio
+        tts_response = await asyncio.to_thread(
+            self.tts_client.synthesize_speech,
+            input=synthesis_input,
+            voice=self.voice,
+            audio_config=self.audio_config,
+        )
+
+        bucket = self.storage_client.bucket(self.gcs_bucket_name)
+        blob = bucket.blob(blob_name)
+
+        await asyncio.to_thread(
+            blob.upload_from_string,
+            tts_response.audio_content,
+            content_type="audio/mpeg",
+        )
+
+        # Make blob public or generate signed URL
+        blob.make_public()
+        audio_url = blob.public_url
+        
+        return answer_text, audio_url
 
     async def get_issue_status(self, issue_id: str) -> dict | None:
         """

@@ -50,3 +50,10 @@ export interface ClickUpSettings {
     apiToken: string
     listId: string
 }
+
+export interface ConversationMessage {
+    role: 'user' | 'assistant';
+    text: string;
+    audioUrl?: string;
+    timestamp: number;
+}

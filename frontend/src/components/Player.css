@@ -502,3 +502,139 @@
 .group-item .segment-links {
   margin-top: 4px;
 }
+
+/* Q&A Styles */
+.mic-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #444;
+  border-radius: 50%;
+  background: transparent;
+  color: #f0f0f0;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.mic-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #646cff;
+}
+
+.mic-btn.listening {
+  background: rgba(255, 0, 0, 0.2);
+  border-color: #ff4444;
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); }
+}
+
+.qa-panel {
+  position: fixed;
+  bottom: 90px; /* Above audio controls */
+  left: 20px;
+  right: 20px;
+  max-width: 760px;
+  margin: 0 auto;
+  background: #252525;
+  border: 1px solid #444;
+  border-radius: 12px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  max-height: 40vh;
+  z-index: 90;
+  overflow: hidden;
+}
+
+.qa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #1e1e1e;
+  border-bottom: 1px solid #333;
+}
+
+.qa-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #f0f0f0;
+  font-weight: 500;
+}
+
+.close-qa {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.close-qa:hover {
+  color: #fff;
+}
+
+.qa-messages {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qa-message {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  max-width: 85%;
+}
+
+.qa-message.user {
+  align-self: flex-end;
+  background: #646cff;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.qa-message.assistant {
+  align-self: flex-start;
+  background: #333;
+  color: #f0f0f0;
+  border-bottom-left-radius: 4px;
+}
+
+.qa-message.error {
+  align-self: center;
+  background: rgba(255, 68, 68, 0.1);
+  color: #ff4444;
+  border: 1px solid rgba(255, 68, 68, 0.2);
+}
+
+.qa-message.loading p {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.qa-placeholder {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  margin: 20px 0;
+}
+
+.qa-message.listening {
+  opacity: 0.8;
+  animation: pulse 2s infinite;
+}

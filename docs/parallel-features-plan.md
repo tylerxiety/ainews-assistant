@@ -1,6 +1,6 @@
 # Parallel Features Implementation Plan
 
-**Overall Progress:** `0%`
+**Overall Progress:** `50%`
 
 ## TLDR
 
@@ -24,31 +24,31 @@ Two features developed in parallel:
 
 ## Tasks
 
-- [ ] 🟥 **Step 1: Backend `/ask` endpoint**
-  - [ ] 🟥 Add `ask()` method to `processor.py` — accepts question + topic context, calls Gemini, returns text response
-  - [ ] 🟥 Add `POST /ask` endpoint to `main.py` — params: `issue_id`, `group_id`, `question`
-  - [ ] 🟥 Generate TTS for response, upload to GCS, return audio URL + transcript
+- [x] 🟩 **Step 1: Backend `/ask` endpoint**
+  - [x] 🟩 Add `ask()` method to `processor.py` — accepts question + topic context, calls Gemini, returns text response
+  - [x] 🟩 Add `POST /ask` endpoint to `main.py` — params: `issue_id`, `group_id`, `question`
+  - [x] 🟩 Generate TTS for response, upload to GCS, return audio URL + transcript
 
-- [ ] 🟥 **Step 2: Frontend STT integration**
-  - [ ] 🟥 Add Web Speech API hook (`useSpeechRecognition`) — handles start/stop, returns transcript
-  - [ ] 🟥 Add mic button to Player.tsx — toggles listen mode
-  - [ ] 🟥 Auto-pause newsletter audio when STT starts
-  - [ ] 🟥 Detect end of speech (silence or "done") — stop STT, send question
+- [x] 🟩 **Step 2: Frontend STT integration**
+  - [x] 🟩 Add Web Speech API hook (`useSpeechRecognition`) — handles start/stop, returns transcript
+  - [x] 🟩 Add mic button to Player.tsx — toggles listen mode
+  - [x] 🟩 Auto-pause newsletter audio when STT starts
+  - [x] 🟩 Detect end of speech (silence or "done") — stop STT, send question
 
-- [ ] 🟥 **Step 3: Conversation UI in Player**
-  - [ ] 🟥 Add conversation state to Player.tsx — `messages: {role, text, audioUrl}[]`
-  - [ ] 🟥 Add collapsible conversation panel below controls — shows Q&A history
-  - [ ] 🟥 Add second `<audio>` element for response playback (separate from newsletter audio)
+- [x] 🟩 **Step 3: Conversation UI in Player**
+  - [x] 🟩 Add conversation state to Player.tsx — `messages: {role, text, audioUrl}[]`
+  - [x] 🟩 Add collapsible conversation panel below controls — shows Q&A history
+  - [x] 🟩 Add second `<audio>` element for response playback (separate from newsletter audio)
 
-- [ ] 🟥 **Step 4: Response playback flow**
-  - [ ] 🟥 On question submit: show loading state, call `/ask`, receive response
-  - [ ] 🟥 Play response audio, display transcript in conversation panel
-  - [ ] 🟥 On response end: auto-resume newsletter audio (if was playing before)
+- [x] 🟩 **Step 4: Response playback flow**
+  - [x] 🟩 On question submit: show loading state, call `/ask`, receive response
+  - [x] 🟩 Play response audio, display transcript in conversation panel
+  - [x] 🟩 On response end: auto-resume newsletter audio (if was playing before)
 
-- [ ] 🟥 **Step 5: Polish & edge cases**
-  - [ ] 🟥 Handle STT errors (no permission, not supported) — show fallback text input
-  - [ ] 🟥 Handle `/ask` errors — display error in conversation panel
-  - [ ] 🟥 Prevent overlapping requests (disable mic while processing)
+- [x] 🟩 **Step 5: Polish & edge cases**
+  - [x] 🟩 Handle STT errors (no permission, not supported) — show fallback text input
+  - [x] 🟩 Handle `/ask` errors — display error in conversation panel
+  - [x] 🟩 Prevent overlapping requests (disable mic while processing)
 
 ---
 
@@ -58,26 +58,26 @@ Two features developed in parallel:
 
 ## Tasks
 
-- [ ] 🟥 **Step 1: URL input UI**
-  - [ ] 🟥 Add URL input form to top of IssueList.tsx — text field + submit button
-  - [ ] 🟥 Basic validation — must be valid URL, show inline error if not
-  - [ ] 🟥 Submit calls `POST /process?url=...`
+- [x] 🟩 **Step 1: URL input UI**
+  - [x] 🟩 Add URL input form to top of IssueList.tsx — text field + submit button
+  - [x] 🟩 Basic validation — must be valid URL, show inline error if not
+  - [x] 🟩 Submit calls `POST /process?url=...`
 
-- [ ] 🟥 **Step 2: Processing status**
-  - [ ] 🟥 Add `processingStatus` state — `idle | processing | done | error`
-  - [ ] 🟥 Show inline progress indicator while processing ("Processing newsletter...")
-  - [ ] 🟥 On success: add new issue to list, auto-navigate to Player
-  - [ ] 🟥 On error: show error message, allow retry
+- [x] 🟩 **Step 2: Processing status**
+  - [x] 🟩 Add `processingStatus` state — `idle | processing | done | error`
+  - [x] 🟩 Show inline progress indicator while processing ("Processing newsletter...")
+  - [x] 🟩 On success: add new issue to list, auto-navigate to Player
+  - [x] 🟩 On error: show error message, allow retry
 
-- [ ] 🟥 **Step 3: Parser improvements**
-  - [ ] 🟥 Test `_parse_newsletter()` against Substack HTML — adjust selectors if needed
-  - [ ] 🟥 Test against Buttondown HTML — adjust selectors if needed
-  - [ ] 🟥 Add fallback: if no structured content found, treat entire `<article>` or `<main>` as single segment
+- [x] 🟩 **Step 3: Parser improvements**
+  - [x] 🟩 Test `_parse_newsletter()` against Substack HTML — adjust selectors if needed
+  - [x] 🟩 Test against Buttondown HTML — adjust selectors if needed
+  - [x] 🟩 Add fallback: if no structured content found, treat entire `<article>` or `<main>` as single segment
 
-- [ ] 🟥 **Step 4: Edge cases**
-  - [ ] 🟥 Handle duplicate URL submission — check if issue already exists, navigate to existing
-  - [ ] 🟥 Handle unreachable URLs — return clear error message
-  - [ ] 🟥 Handle empty/unparseable content — return error with guidance
+- [x] 🟩 **Step 4: Edge cases**
+  - [x] 🟩 Handle duplicate URL submission — check if issue already exists, navigate to existing
+  - [x] 🟩 Handle unreachable URLs — return clear error message
+  - [x] 🟩 Handle empty/unparseable content — return error with guidance
 
 ---
 

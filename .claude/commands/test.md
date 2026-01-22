@@ -4,11 +4,51 @@ description: Run Tests & Validation
 
 # Test & Validation
 
-Run automated checks, code review, and functional testing. This is comprehensive verification.
+Prove the code works, review for issues, run automated checks. In that order.
 
-## Part 1: Automated Checks
+## Part 1: Prove It Works (Behavioral)
 
-Run these, report PASS/FAIL for each:
+**This is the most important part. "Build passes" is NOT verification.**
+
+### Backend logic (parsers, algorithms, data transforms)
+- Use Python REPL or curl to run the actual code path
+- Pass real/representative input, check the output
+- Example: `curl -X POST localhost:8000/process -d '{"url": "..."}' | jq .`
+
+### Frontend features
+- Use browser tools (Playwright) to actually click through
+- Navigate to the page, perform the user action, verify result
+- Check browser console for errors
+
+### What to verify
+- Happy path works as expected
+- Error states handled (what if API fails? empty input?)
+- Edge cases (empty list, very long input, special characters)
+
+**Report format:**
+```
+Behavioral Check:
+- Action: [what you did]
+- Input: [what data you used]
+- Expected: [what should happen]
+- Actual: [what happened]
+- Result: PASS/FAIL
+```
+
+## Part 2: Self-Review (Logic)
+
+Follow `/review` criteria on touched files. Focus especially on issues static analysis can't catch:
+
+- **Resource cleanup**: useEffect cleanup functions, event listener removal, interval clearing, file handle closing
+- **Race conditions**: What if user clicks twice fast? What if two async ops complete out of order?
+- **State bugs**: Can component get into invalid state? Are loading/error states handled?
+- **Hardcoded values**: Strings that should be constants, values that should be config
+
+See `/review` for full checklist (security, async patterns, TypeScript, etc.).
+
+## Part 3: Automated Checks
+
+Run these, report PASS/FAIL:
 
 1. **Backend types**: `cd backend && uv run mypy . --ignore-missing-imports`
 2. **Frontend types**: `cd frontend && npx tsc --noEmit`
@@ -16,64 +56,40 @@ Run these, report PASS/FAIL for each:
 4. **Frontend lint**: `cd frontend && npm run lint` (if configured)
 5. **Frontend build**: `cd frontend && npm run build`
 
-## Part 2: Code Review
-
-Follow `/review` criteria on the files being tested. Focus on:
-- Correctness (does the logic make sense?)
-- Error handling (what happens when things fail?)
-- Edge cases (empty states, loading states, error states)
-
-## Part 3: Functional Testing
-
-**Actually test the feature works.** Use browser tools (Playwright) and/or curl.
-
-### Setup
-1. Start backend: `cd backend && uv run uvicorn main:app --port 8000 &`
-2. Start frontend: `cd frontend && npm run dev &`
-3. Wait for both to be ready
-
-### Test the feature
-Based on what was implemented, exercise the actual functionality:
-- Navigate to the relevant page
-- Perform the user actions (click, type, submit)
-- Verify expected results appear
-- Check for console errors, network failures
-- Test error states if applicable (what if API fails?)
-
-### Cleanup
-- Stop the servers when done
-
 ## Output Format
 
 ```
 ## Test Results
 
+### Behavioral Checks
+- [Feature/function tested]
+  - Action: [what was done]
+  - Result: PASS/FAIL — [observed behavior]
+
+### Self-Review
+- Resource cleanup: PASS/FAIL — [notes]
+- Race conditions: PASS/FAIL — [notes]
+- State handling: PASS/FAIL — [notes]
+
 ### Automated Checks
-- [ ] Backend types: PASS/FAIL
-- [ ] Frontend types: PASS/FAIL
-- [ ] Build: PASS/FAIL
-
-### Code Review
-- [ ] Correctness: PASS/FAIL — [notes]
-- [ ] Error handling: PASS/FAIL — [notes]
-- [ ] Edge cases: PASS/FAIL — [notes]
-
-### Functional Testing
-- [ ] Setup: Servers started successfully
-- [ ] Feature test: [describe what was tested]
-  - Step 1: [action] → [result] ✓/✗
-  - Step 2: [action] → [result] ✓/✗
-- [ ] Error states: [tested/not tested] — [result]
-- [ ] Console errors: None / [list them]
+- Backend types: PASS/FAIL
+- Frontend types: PASS/FAIL
+- Build: PASS/FAIL
 
 ### Issues Found
-- [File:line] Description (from any part above)
+- [File:line] Description
 
 ### Summary
-Feature works: YES / NO / PARTIAL
+Behavior verified: YES/NO
 Issues to fix: X
 ```
 
 ## Scope
 
-If testing specific files/features (e.g., from `/verify`), focus testing on those areas only. Don't test unrelated parts of the app.
+If testing specific files/features (e.g., from `/verify`), focus on those areas only.
+
+## Per AGENTS.md
+
+- Do NOT create standalone test scripts (`test_*.py`, `check_*.py`)
+- Use REPL, curl, or browser tools instead
+- Add temporary logging if needed, then remove it

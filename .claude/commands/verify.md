@@ -20,17 +20,33 @@ Do NOT update the plan document yet — wait until the end.
 
 ```
 for iteration in 1..3:
-    1. Run /test (scoped to touched files + the feature built)
-    2. If issues found:
-       - Fix them
-       - Continue to next iteration
-    3. If no issues:
-       - Exit loop early
+    1. PROVE IT WORKS (behavioral)
+       - Backend logic: Run in REPL or curl with real input, verify output
+       - Frontend: Use browser tools to click through the feature
+       - "Build passes" is NOT proof. Actually exercise the code path.
+
+    2. SELF-REVIEW (logic)
+       - Resource cleanup (useEffect returns, file handles, event listeners)
+       - Edge cases (empty state, error state, race conditions)
+       - Hardcoded values that should be constants/config
+
+    3. AUTOMATED CHECKS
+       - Type check: mypy, tsc --noEmit
+       - Lint: ruff, eslint (if configured)
+       - Build: npm run build
+
+    4. If issues found → fix them → next iteration
+    5. If clean → exit loop
 ```
 
 **Stop conditions:**
 - No issues remain → SUCCESS
 - 3 iterations completed → STOP (report remaining issues)
+
+**Common mistakes to avoid:**
+- Declaring "PASS" without actually running the feature
+- Skipping behavioral checks because "build passed"
+- Missing cleanup in useEffect, event listeners, intervals
 
 ## Phase 3: Final Report
 
@@ -49,10 +65,13 @@ for iteration in 1..3:
 - Issues fixed: Y
 - Exit reason: [clean / max iterations]
 
-### Test Results (Final)
-- Automated checks: PASS/FAIL
-- Code review: PASS/FAIL
-- Functional test: PASS/FAIL
+### Proof of Behavior
+- [What you actually ran/clicked to verify it works]
+- [Observed output/result]
+
+### Automated Checks
+- Types: PASS/FAIL
+- Build: PASS/FAIL
 
 ### Remaining Issues (if any)
 - [File:line] Description
@@ -64,5 +83,6 @@ YES / NO (explain blockers if NO)
 ## Important
 
 - **Scope is everything** — only touch files from Phase 1
+- **Prove behavior first** — "it compiles" is not verification
 - Fix all issues found
 - If stuck on an issue after 2 attempts, note it and move on

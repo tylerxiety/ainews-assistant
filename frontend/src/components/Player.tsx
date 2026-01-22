@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { fetchIssueWithGroups, fetchBookmarks, createBookmark } from '../lib/supabase'
 import { isClickUpConfigured, createClickUpTask } from '../lib/clickup'
-import { Issue, Segment, TopicGroup } from '../types'
+import { apiUrl } from '../lib/api'
+import { Issue, Segment, TopicGroup, ConversationMessage } from '../types'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import Loading from './Loading'
 import './Player.css'
 
@@ -14,6 +16,18 @@ export default function Player() {
   const [groups, setGroups] = useState<TopicGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Q&A State
+  const { isListening, transcript, startListening, stopListening, resetTranscript, hasRecognitionSupport, error: sttError } = useSpeechRecognition()
+  const [messages, setMessages] = useState<ConversationMessage[]>([])
+  const [isLoadingAnswer, setIsLoadingAnswer] = useState(false)
+  const [showQaPanel, setShowQaPanel] = useState(false)
+  const [qaAudioUrl, setQaAudioUrl] = useState<string | null>(null)
+
+  // Refs for Q&A
+  const qaAudioRef = useRef<HTMLAudioElement | null>(null)
+  const wasPlayingBeforeQa = useRef(false)
+  const processedTranscriptRef = useRef('') // To prevent double submission
 
   // Bookmark state
   const [bookmarkedSegments, setBookmarkedSegments] = useState<Set<string>>(new Set())
@@ -30,6 +44,129 @@ export default function Player() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+
+  // Q&A Effects
+
+  // Handle STT completion
+  useEffect(() => {
+    // If we stopped listening, have a transcript, and haven't processed it yet
+    if (!isListening && transcript && transcript !== processedTranscriptRef.current && !sttError) {
+      handleAskQuestion(transcript)
+      processedTranscriptRef.current = transcript
+    }
+  }, [isListening, transcript, sttError])
+
+  const handleMicClick = () => {
+    if (isListening) {
+      stopListening()
+    } else {
+      // Pause main audio if playing
+      if (isPlaying) {
+        wasPlayingBeforeQa.current = true
+        handlePause()
+      } else {
+        wasPlayingBeforeQa.current = false
+      }
+
+      resetTranscript()
+      processedTranscriptRef.current = ''
+      setShowQaPanel(true)
+      startListening()
+    }
+  }
+
+  const handleAskQuestion = async (question: string) => {
+    if (!issueId || !groups[currentGroupIndex]) return
+
+    // Add user message
+    const userMsg: ConversationMessage = {
+      role: 'user',
+      text: question,
+      timestamp: Date.now()
+    }
+    setMessages(prev => [...prev, userMsg])
+    setIsLoadingAnswer(true)
+
+    try {
+      // Call backend
+      const response = await fetch(apiUrl('/ask'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          issue_id: issueId,
+          group_id: groups[currentGroupIndex].id,
+          question: question
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get answer')
+      }
+
+      const data = await response.json()
+
+      // Add assistant message
+      const assistantMsg: ConversationMessage = {
+        role: 'assistant',
+        text: data.answer,
+        audioUrl: data.audio_url,
+        timestamp: Date.now()
+      }
+      setMessages(prev => [...prev, assistantMsg])
+
+      // Play response audio
+      if (data.audio_url) {
+        setQaAudioUrl(data.audio_url)
+      } else {
+        // If no audio, resume main audio after a delay
+        setTimeout(() => {
+          if (wasPlayingBeforeQa.current) {
+            handlePlay()
+          }
+        }, 2000)
+      }
+
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error('Q&A Error:', err)
+      }
+      const errorMsg: ConversationMessage = {
+        role: 'assistant',
+        text: "Sorry, I couldn't get an answer at this time.",
+        timestamp: Date.now()
+      }
+      setMessages(prev => [...prev, errorMsg])
+      setIsLoadingAnswer(false)
+
+      // Resume main audio
+      if (wasPlayingBeforeQa.current) {
+        handlePlay()
+      }
+    } finally {
+      setIsLoadingAnswer(false)
+    }
+  }
+
+  // Play QA audio when URL changes
+  useEffect(() => {
+    if (qaAudioUrl && qaAudioRef.current) {
+      qaAudioRef.current.src = qaAudioUrl
+      qaAudioRef.current.play().catch(e => {
+        if (import.meta.env.DEV) {
+          console.error("QA Playback failed:", e)
+        }
+      })
+    }
+  }, [qaAudioUrl])
+
+  const handleQaEnded = () => {
+    setQaAudioUrl(null)
+    if (wasPlayingBeforeQa.current) {
+      handlePlay()
+    }
+  }
 
   // Load issue, groups, and bookmarks
   useEffect(() => {
@@ -325,6 +462,12 @@ export default function Player() {
         onError={handleAudioError}
       />
 
+      {/* QA Audio element (hidden) */}
+      <audio
+        ref={qaAudioRef}
+        onEnded={handleQaEnded}
+      />
+
       {/* Audio controls */}
       <div className="audio-controls">
         <button
@@ -350,10 +493,55 @@ export default function Player() {
           {playbackSpeed}x
         </button>
 
+        {hasRecognitionSupport && (
+          <button
+            className={`mic-btn ${isListening ? 'listening' : ''}`}
+            onClick={handleMicClick}
+            title="Ask a question about this section"
+          >
+            {isListening ? '🔴' : '🎤'}
+          </button>
+        )}
+
         <span className="segment-indicator">
           {groups.length > 0 ? `${currentGroupIndex + 1}/${groups.length}` : '0/0'}
         </span>
       </div>
+
+      {/* QA Panel */}
+      {showQaPanel && (
+        <div className="qa-panel">
+          <div className="qa-header">
+            <h3>Q&A</h3>
+            <button className="close-qa" onClick={() => setShowQaPanel(false)}>×</button>
+          </div>
+          <div className="qa-messages">
+            {messages.length === 0 && !isListening && (
+              <p className="qa-placeholder">Tap the mic to ask a question about this section.</p>
+            )}
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`qa-message ${msg.role}`}>
+                <p>{msg.text}</p>
+              </div>
+            ))}
+            {isListening && (
+              <div className="qa-message user listening">
+                <p>{transcript || "Listening..."}</p>
+              </div>
+            )}
+            {isLoadingAnswer && (
+              <div className="qa-message assistant loading">
+                <p>Thinking...</p>
+              </div>
+            )}
+            {sttError && (
+              <div className="qa-message error">
+                <p>Error: {sttError}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Topic Groups List */}
       <div className="segments-list">

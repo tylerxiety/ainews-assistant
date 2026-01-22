@@ -6,9 +6,7 @@ PROJECT_ID="${GCP_PROJECT_ID:-your-project-id}"
 REGION="us-central1"
 SERVICE_NAME="newsletter-processor"
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
-
-# Environment variables
-# TODO: Replace these with your actual values or use Secret Manager
+# Environment variables (use env vars or Secret Manager in production)
 SUPABASE_URL="${SUPABASE_URL:-https://your-project.supabase.co}"
 GCS_BUCKET_NAME="${GCS_BUCKET_NAME:-your-gcs-bucket-name}"
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-3-pro-preview}"
