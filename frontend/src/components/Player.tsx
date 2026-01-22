@@ -4,7 +4,7 @@ import { fetchIssueWithGroups, fetchBookmarks, createBookmark } from '../lib/sup
 import { isClickUpConfigured, createClickUpTask } from '../lib/clickup'
 import { apiUrl } from '../lib/api'
 import { Issue, Segment, TopicGroup, ConversationMessage } from '../types'
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import Loading from './Loading'
 import './Player.css'
 
@@ -18,7 +18,7 @@ export default function Player() {
   const [error, setError] = useState<string | null>(null)
 
   // Q&A State
-  const { isListening, transcript, startListening, stopListening, resetTranscript, hasRecognitionSupport, error: sttError } = useSpeechRecognition()
+  const { isRecording, audioBlob, error: recorderError, startRecording, stopRecording } = useAudioRecorder()
   const [messages, setMessages] = useState<ConversationMessage[]>([])
   const [isLoadingAnswer, setIsLoadingAnswer] = useState(false)
   const [showQaPanel, setShowQaPanel] = useState(false)
@@ -27,7 +27,7 @@ export default function Player() {
   // Refs for Q&A
   const qaAudioRef = useRef<HTMLAudioElement | null>(null)
   const wasPlayingBeforeQa = useRef(false)
-  const processedTranscriptRef = useRef('') // To prevent double submission
+  const processedAudioRef = useRef<Blob | null>(null) // To prevent double submission
 
   // Bookmark state
   const [bookmarkedSegments, setBookmarkedSegments] = useState<Set<string>>(new Set())
@@ -47,18 +47,18 @@ export default function Player() {
 
   // Q&A Effects
 
-  // Handle STT completion
+  // Handle audio recording completion
   useEffect(() => {
-    // If we stopped listening, have a transcript, and haven't processed it yet
-    if (!isListening && transcript && transcript !== processedTranscriptRef.current && !sttError) {
-      handleAskQuestion(transcript)
-      processedTranscriptRef.current = transcript
+    // If we stopped recording and have an audio blob, send it
+    if (!isRecording && audioBlob && audioBlob !== processedAudioRef.current && !recorderError) {
+      handleAskQuestionWithAudio(audioBlob)
+      processedAudioRef.current = audioBlob
     }
-  }, [isListening, transcript, sttError])
+  }, [isRecording, audioBlob, recorderError])
 
   const handleMicClick = () => {
-    if (isListening) {
-      stopListening()
+    if (isRecording) {
+      stopRecording()
     } else {
       // Pause main audio if playing
       if (isPlaying) {
@@ -68,37 +68,35 @@ export default function Player() {
         wasPlayingBeforeQa.current = false
       }
 
-      resetTranscript()
-      processedTranscriptRef.current = ''
+      processedAudioRef.current = null
       setShowQaPanel(true)
-      startListening()
+      startRecording()
     }
   }
 
-  const handleAskQuestion = async (question: string) => {
+  const handleAskQuestionWithAudio = async (audioBlob: Blob) => {
     if (!issueId || !groups[currentGroupIndex]) return
 
-    // Add user message
+    // Add user message (placeholder while transcribing)
     const userMsg: ConversationMessage = {
       role: 'user',
-      text: question,
+      text: 'Transcribing...',
       timestamp: Date.now()
     }
     setMessages(prev => [...prev, userMsg])
     setIsLoadingAnswer(true)
 
     try {
+      // Prepare FormData
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'recording.webm')
+      formData.append('issue_id', issueId)
+      formData.append('group_id', groups[currentGroupIndex].id)
+
       // Call backend
-      const response = await fetch(apiUrl('/ask'), {
+      const response = await fetch(apiUrl('/ask-audio'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          issue_id: issueId,
-          group_id: groups[currentGroupIndex].id,
-          question: question
-        }),
+        body: formData,
       })
 
       if (!response.ok) {
@@ -106,6 +104,13 @@ export default function Player() {
       }
 
       const data = await response.json()
+
+      // Update user message with transcription
+      setMessages(prev =>
+        prev.map((msg, idx) =>
+          idx === prev.length - 1 ? { ...msg, text: data.transcript || msg.text } : msg
+        )
+      )
 
       // Add assistant message
       const assistantMsg: ConversationMessage = {
@@ -493,15 +498,13 @@ export default function Player() {
           {playbackSpeed}x
         </button>
 
-        {hasRecognitionSupport && (
-          <button
-            className={`mic-btn ${isListening ? 'listening' : ''}`}
-            onClick={handleMicClick}
-            title="Ask a question about this section"
-          >
-            {isListening ? '🔴' : '🎤'}
-          </button>
-        )}
+        <button
+          className={`mic-btn ${isRecording ? 'listening' : ''}`}
+          onClick={handleMicClick}
+          title="Ask a question about this section"
+        >
+          {isRecording ? '🔴' : '🎤'}
+        </button>
 
         <span className="segment-indicator">
           {groups.length > 0 ? `${currentGroupIndex + 1}/${groups.length}` : '0/0'}
@@ -516,7 +519,7 @@ export default function Player() {
             <button className="close-qa" onClick={() => setShowQaPanel(false)}>×</button>
           </div>
           <div className="qa-messages">
-            {messages.length === 0 && !isListening && (
+            {messages.length === 0 && !isRecording && (
               <p className="qa-placeholder">Tap the mic to ask a question about this section.</p>
             )}
             {messages.map((msg, idx) => (
@@ -524,9 +527,9 @@ export default function Player() {
                 <p>{msg.text}</p>
               </div>
             ))}
-            {isListening && (
+            {isRecording && (
               <div className="qa-message user listening">
-                <p>{transcript || "Listening..."}</p>
+                <p>Recording...</p>
               </div>
             )}
             {isLoadingAnswer && (
@@ -534,9 +537,9 @@ export default function Player() {
                 <p>Thinking...</p>
               </div>
             )}
-            {sttError && (
+            {recorderError && (
               <div className="qa-message error">
-                <p>Error: {sttError}</p>
+                <p>Error: {recorderError}</p>
               </div>
             )}
           </div>
