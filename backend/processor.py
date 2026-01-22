@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 import vertexai
 from google.cloud import storage, texttospeech
 from supabase import Client, create_client
-from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import GenerativeModel, Part
 
 
 class NewsletterProcessor:
@@ -47,6 +47,7 @@ class NewsletterProcessor:
         vertexai.init(project=gcp_project_id, location="global")
         self.gemini_model = GenerativeModel(gemini_model_name)
         logger.info(f"Initialized processor with Gemini model: {gemini_model_name}")
+
         self.tts_client = texttospeech.TextToSpeechClient()
         self.storage_client = storage.Client()
 
@@ -629,6 +630,145 @@ If the answer is not in the content, say so politely.
         audio_url = blob.public_url
         
         return answer_text, audio_url
+
+    async def ask_with_audio(
+        self, audio_file, issue_id: str, group_id: str
+    ) -> tuple[str, str, str]:
+        """
+        Answer a question from audio input about a specific topic group.
+        Uses Gemini 2.0 Flash for audio transcription and Q&A.
+
+        Args:
+            audio_file: UploadFile from FastAPI
+            issue_id: Issue UUID
+            group_id: Topic Group UUID
+
+        Returns:
+            tuple: (answer_text, audio_url, transcript)
+        """
+        import os
+
+        # 1. Upload audio to GCS temporarily
+        audio_id = str(uuid.uuid4())
+        extension = ".webm"
+        if audio_file.content_type == "audio/mp4":
+            extension = ".m4a"
+
+        temp_blob_name = f"{issue_id}/qna/temp_{audio_id}{extension}"
+        bucket = self.storage_client.bucket(self.gcs_bucket_name)
+        temp_blob = bucket.blob(temp_blob_name)
+
+        content = await audio_file.read()
+        await asyncio.to_thread(
+            temp_blob.upload_from_string,
+            content,
+            content_type=audio_file.content_type,
+        )
+
+        # Get GCS URI
+        audio_uri = f"gs://{self.gcs_bucket_name}/{temp_blob_name}"
+        logger.info(f"Uploaded audio to: {audio_uri}")
+
+        try:
+            # 2. Fetch context (segments) for the group
+            segments_resp = self.supabase.table("segments") \
+                .select("content_clean, content_raw") \
+                .eq("topic_group_id", group_id) \
+                .order("order_index") \
+                .execute()
+
+            if not segments_resp.data:
+                return "I couldn't find the content for this section.", "", ""
+
+            # Combine text
+            context_text = "\n".join([
+                s.get("content_clean") or s.get("content_raw", "")
+                for s in segments_resp.data
+            ])
+
+            # 3. Call Gemini with audio + context (single call: transcribe + answer)
+            prompt = f"""
+You are an AI assistant helping a user listen to a newsletter.
+The user is listening to a section with the following content:
+
+<content>
+{context_text}
+</content>
+
+The user asked a question via audio. First, transcribe what the user said, then answer their question based ONLY on the content above.
+
+Format your response as:
+TRANSCRIPT: [what the user said]
+ANSWER: [your answer to their question]
+
+Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
+Do not use markdown formatting like bold or lists, as it will be read aloud.
+If the answer is not in the content, say so politely.
+"""
+
+            # Create audio part from GCS URI
+            audio_part = Part.from_uri(
+                uri=audio_uri,
+                mime_type=audio_file.content_type
+            )
+
+            response = await asyncio.to_thread(
+                self.gemini_model.generate_content,
+                [audio_part, prompt]
+            )
+
+            response_text = response.text.strip()
+            logger.info(f"Gemini response: {response_text[:200]}...")
+
+            # Parse response
+            transcript = ""
+            answer_text = ""
+
+            if "TRANSCRIPT:" in response_text and "ANSWER:" in response_text:
+                parts = response_text.split("ANSWER:", 1)
+                transcript_part = parts[0].replace("TRANSCRIPT:", "").strip()
+                answer_part = parts[1].strip()
+
+                transcript = transcript_part
+                answer_text = answer_part
+            else:
+                # Fallback if format is not followed
+                answer_text = response_text
+                transcript = "[Transcription unavailable]"
+
+            # 4. Generate TTS for response
+            qa_id = str(uuid.uuid4())
+            response_blob_name = f"{issue_id}/qna/{qa_id}.mp3"
+
+            synthesis_input = texttospeech.SynthesisInput(text=answer_text)
+
+            tts_response = await asyncio.to_thread(
+                self.tts_client.synthesize_speech,
+                input=synthesis_input,
+                voice=self.voice,
+                audio_config=self.audio_config,
+            )
+
+            response_blob = bucket.blob(response_blob_name)
+
+            await asyncio.to_thread(
+                response_blob.upload_from_string,
+                tts_response.audio_content,
+                content_type="audio/mpeg",
+            )
+
+            response_blob.make_public()
+            audio_url = response_blob.public_url
+
+            return answer_text, audio_url, transcript
+
+        finally:
+            # Clean up temp audio file from GCS
+            try:
+                await asyncio.to_thread(temp_blob.delete)
+                logger.info(f"Deleted temp audio: {audio_uri}")
+            except Exception as e:
+                logger.warning(f"Failed to delete temp audio {audio_uri}: {e}")
 
     async def get_issue_status(self, issue_id: str) -> dict | None:
         """

@@ -8,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 
@@ -90,13 +90,40 @@ async def ask_question(request: AskRequest):
             request.issue_id,
             request.group_id
         )
-        
+
         return {
             "answer": answer_text,
             "audio_url": audio_url
         }
     except Exception as e:
         logger.error(f"Error in ask_question: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error") from None
+
+
+@app.post("/ask-audio")
+async def ask_question_audio(
+    audio: UploadFile = File(...),
+    issue_id: str = Form(...),
+    group_id: str = Form(...)
+):
+    """
+    Ask a question about a specific topic group using audio input.
+    The audio is transcribed and answered in a single Gemini call.
+    """
+    try:
+        answer_text, audio_url, transcript = await processor.ask_with_audio(
+            audio,
+            issue_id,
+            group_id
+        )
+
+        return {
+            "answer": answer_text,
+            "audio_url": audio_url,
+            "transcript": transcript
+        }
+    except Exception as e:
+        logger.error(f"Error in ask_question_audio: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error") from None
 
 
