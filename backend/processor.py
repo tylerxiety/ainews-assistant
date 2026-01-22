@@ -1,27 +1,23 @@
 """
 Newsletter processor: RSS fetch, parse, clean, TTS, and storage.
 """
-import logging
 import asyncio
 import io
-from typing import List, Dict, Optional
-from datetime import datetime, timezone
 import json
-import uuid
+import logging
+from datetime import UTC, datetime
 
-import httpx
 import feedparser
+import httpx
 from bs4 import BeautifulSoup
 from mutagen.mp3 import MP3
 
 logger = logging.getLogger(__name__)
 
-from google.cloud import texttospeech
-from google.cloud import storage
 import vertexai
+from google.cloud import storage, texttospeech
+from supabase import Client, create_client
 from vertexai.generative_models import GenerativeModel
-
-from supabase import create_client, Client
 
 
 class NewsletterProcessor:
@@ -71,7 +67,7 @@ class NewsletterProcessor:
         """Close resources."""
         await self.http_client.aclose()
 
-    async def process_newsletter(self, url: str, issue_id: Optional[str] = None) -> str:
+    async def process_newsletter(self, url: str, issue_id: str | None = None) -> str:
         """
         Main processing pipeline for a newsletter issue.
 
@@ -115,7 +111,7 @@ class NewsletterProcessor:
         # Process groups in parallel
         semaphore = asyncio.Semaphore(self.max_concurrent_segments) # Reuse existing semaphore setting
 
-        async def process_group(group: Dict) -> Dict:
+        async def process_group(group: dict) -> dict:
             async with semaphore:
                 group["issue_id"] = issue_id
                 
@@ -239,7 +235,7 @@ class NewsletterProcessor:
 
         # Mark issue as processed
         self.supabase.table("issues").update(
-            {"processed_at": datetime.now(timezone.utc).isoformat()}
+            {"processed_at": datetime.now(UTC).isoformat()}
         ).eq("id", issue_id).execute()
 
         logger.info(f"Newsletter processing complete: {issue_id}")
@@ -251,7 +247,7 @@ class NewsletterProcessor:
         response.raise_for_status()
         return response.text
 
-    def _parse_newsletter(self, html_content: str, url: str) -> tuple[Dict, List[Dict]]:
+    def _parse_newsletter(self, html_content: str, url: str) -> tuple[dict, list[dict]]:
         """
         Parse AINews newsletter HTML into structured segments.
 
@@ -266,7 +262,7 @@ class NewsletterProcessor:
 
         # Extract issue metadata
         title = soup.find("title").text if soup.find("title") else "Untitled"
-        published_at = datetime.now(timezone.utc).isoformat()
+        published_at = datetime.now(UTC).isoformat()
 
         issue_data = {
             "title": title,
@@ -337,7 +333,7 @@ class NewsletterProcessor:
 
         return issue_data, segments_data
 
-    def _group_segments(self, segments_data: List[Dict]) -> List[Dict]:
+    def _group_segments(self, segments_data: list[dict]) -> list[dict]:
         """
         Group segments into topic groups.
         Topic Headers and Section Headers start new groups and become labels.
@@ -386,7 +382,7 @@ class NewsletterProcessor:
 
         return groups
 
-    async def _clean_texts_batch(self, texts: List[str]) -> List[str]:
+    async def _clean_texts_batch(self, texts: list[str]) -> list[str]:
         """
         Clean a list of texts using Gemini in one call.
         """
@@ -493,7 +489,7 @@ Rules:
 
         return audio_url, duration_ms
 
-    async def get_issue_status(self, issue_id: str) -> Optional[Dict]:
+    async def get_issue_status(self, issue_id: str) -> dict | None:
         """
         Get processing status for an issue.
 
@@ -524,7 +520,7 @@ Rules:
             "status": "completed" if issue.get("processed_at") else "processing",
         }
 
-    async def fetch_latest_newsletter_url(self) -> Optional[str]:
+    async def fetch_latest_newsletter_url(self) -> str | None:
         """
         Fetch the latest newsletter URL from the AINews RSS feed.
         

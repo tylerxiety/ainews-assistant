@@ -3,14 +3,14 @@ FastAPI application for newsletter processing service.
 Version: 1.0.1
 """
 import logging
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+import os
+import uuid
+from datetime import UTC, datetime
+
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
-import os
-from typing import Optional
-from datetime import datetime, timezone
-import uuid
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -106,7 +106,7 @@ async def process_newsletter(request: ProcessRequest, background_tasks: Backgrou
         raise
     except Exception as e:
         logger.error(f"Error processing newsletter: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from None
 
 
 @app.post("/process-latest")
@@ -162,7 +162,7 @@ async def process_latest_newsletter(force: bool = False):
         }
     except Exception as e:
         logger.error(f"Error in process_latest_newsletter: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from None
 
 
 @app.get("/issues/{issue_id}")
@@ -180,7 +180,7 @@ async def get_issue_status(issue_id: str):
     try:
         uuid.UUID(issue_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid issue_id format")
+        raise HTTPException(status_code=400, detail="Invalid issue_id format") from None
 
     try:
         status = await processor.get_issue_status(issue_id)
@@ -191,7 +191,7 @@ async def get_issue_status(issue_id: str):
         raise
     except Exception as e:
         logger.error(f"Error fetching issue status: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from None
 
 
 # Only register test endpoint in development
@@ -239,7 +239,7 @@ if os.getenv("ENVIRONMENT", "development") == "development":
 
             # Mark as processed
             processor.supabase.table("issues").update(
-                {"processed_at": datetime.now(timezone.utc).isoformat()}
+                {"processed_at": datetime.now(UTC).isoformat()}
             ).eq("id", issue_id).execute()
 
             return {
@@ -251,7 +251,7 @@ if os.getenv("ENVIRONMENT", "development") == "development":
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from None
 
     @app.post("/process-test-groups")
     async def process_newsletter_test_groups(request: ProcessRequest, num_groups: int = 2):
@@ -380,7 +380,7 @@ if os.getenv("ENVIRONMENT", "development") == "development":
 
             # Mark as processed
             processor.supabase.table("issues").update(
-                {"processed_at": datetime.now(timezone.utc).isoformat()}
+                {"processed_at": datetime.now(UTC).isoformat()}
             ).eq("id", issue_id).execute()
 
             return {
@@ -395,7 +395,7 @@ if os.getenv("ENVIRONMENT", "development") == "development":
             raise
         except Exception as e:
             logger.error(f"Error in process_test_groups: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 if __name__ == "__main__":
