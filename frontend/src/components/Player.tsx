@@ -23,9 +23,12 @@ export default function Player() {
   const [isLoadingAnswer, setIsLoadingAnswer] = useState(false)
   const [showQaPanel, setShowQaPanel] = useState(false)
   const [qaAudioUrl, setQaAudioUrl] = useState<string | null>(null)
+  const [isPlayingQaAudio, setIsPlayingQaAudio] = useState(false)
+  const [qaPlaybackFailed, setQaPlaybackFailed] = useState(false)
 
   // Refs for Q&A
-  const qaAudioRef = useRef<HTMLAudioElement | null>(null)
+  const savedNewsletterPositionRef = useRef<number>(0)
+  const savedNewsletterSrcRef = useRef<string | null>(null)
   const wasPlayingBeforeQa = useRef(false)
   const processedAudioRef = useRef<Blob | null>(null) // To prevent double submission
 
@@ -156,20 +159,38 @@ export default function Player() {
 
   // Play QA audio when URL changes
   useEffect(() => {
-    if (qaAudioUrl && qaAudioRef.current) {
-      qaAudioRef.current.src = qaAudioUrl
-      qaAudioRef.current.play().catch(e => {
-        if (import.meta.env.DEV) {
-          console.error("QA Playback failed:", e)
-        }
-      })
+    if (qaAudioUrl && audioRef.current) {
+      // Save newsletter state
+      savedNewsletterPositionRef.current = audioRef.current.currentTime
+      savedNewsletterSrcRef.current = audioRef.current.src
+
+      // Pause newsletter (just in case)
+      audioRef.current.pause()
+
+      // Switch to Q&A audio
+      setIsPlayingQaAudio(true)
+      setQaPlaybackFailed(false)
+      audioRef.current.src = qaAudioUrl
+
+      const playPromise = audioRef.current.play()
+      if (playPromise) {
+        playPromise.catch((e) => {
+          if (import.meta.env.DEV) {
+            console.error("QA Playback failed:", e)
+          }
+          setQaPlaybackFailed(true)
+        })
+      }
     }
   }, [qaAudioUrl])
 
-  const handleQaEnded = () => {
-    setQaAudioUrl(null)
-    if (wasPlayingBeforeQa.current) {
-      handlePlay()
+  const handlePlayQaManually = () => {
+    if (audioRef.current && qaAudioUrl) {
+      audioRef.current.play().then(() => {
+        setQaPlaybackFailed(false)
+      }).catch(e => {
+        console.error("Manual QA Playback failed:", e)
+      })
     }
   }
 
@@ -303,6 +324,23 @@ export default function Player() {
   }
 
   const handleEnded = () => {
+    if (isPlayingQaAudio) {
+      // Q&A audio finished - restore newsletter
+      setIsPlayingQaAudio(false)
+      setQaAudioUrl(null)
+      setQaPlaybackFailed(false)
+
+      if (audioRef.current && savedNewsletterSrcRef.current) {
+        audioRef.current.src = savedNewsletterSrcRef.current
+        audioRef.current.currentTime = savedNewsletterPositionRef.current
+
+        if (wasPlayingBeforeQa.current) {
+          audioRef.current.play().catch(() => { })
+        }
+      }
+      return
+    }
+
     // Move to next group
     if (currentGroupIndex < groups.length - 1) {
       shouldAutoPlayRef.current = true
@@ -314,7 +352,8 @@ export default function Player() {
   }
 
   const handleTimeUpdate = () => {
-    if (audioRef.current) {
+    // Only update main time if NOT playing QA audio
+    if (audioRef.current && !isPlayingQaAudio) {
       setCurrentTime(audioRef.current.currentTime)
     }
   }
@@ -467,11 +506,7 @@ export default function Player() {
         onError={handleAudioError}
       />
 
-      {/* QA Audio element (hidden) */}
-      <audio
-        ref={qaAudioRef}
-        onEnded={handleQaEnded}
-      />
+
 
       {/* Audio controls */}
       <div className="audio-controls">
@@ -522,6 +557,17 @@ export default function Player() {
             {messages.length === 0 && !isRecording && (
               <p className="qa-placeholder">Tap the mic to ask a question about this section.</p>
             )}
+
+            {/* Fallback Play Button */}
+            {qaPlaybackFailed && (
+              <div className="qa-message assistant error-fallback">
+                <p>Auto-play blocked by browser. Tap to listen:</p>
+                <button className="qa-play-button" onClick={handlePlayQaManually}>
+                  ▶ Play Answer
+                </button>
+              </div>
+            )}
+
             {messages.map((msg, idx) => (
               <div key={idx} className={`qa-message ${msg.role}`}>
                 <p>{msg.text}</p>

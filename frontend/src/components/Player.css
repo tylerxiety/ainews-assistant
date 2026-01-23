@@ -631,6 +631,36 @@
   border: 1px solid rgba(255, 68, 68, 0.2);
 }
 
+.qa-message.error-fallback {
+  align-self: flex-start;
+  background: #333;
+  border: 1px solid #ffd700;
+  color: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.qa-play-button {
+  background: #ffd700;
+  color: #000;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s;
+}
+
+.qa-play-button:hover {
+  opacity: 0.9;
+}
+
 .qa-message.loading p {
   opacity: 0.7;
   font-style: italic;
