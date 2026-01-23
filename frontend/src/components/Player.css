@@ -642,6 +642,15 @@
   align-items: flex-start;
 }
 
+.qa-message.resuming {
+  align-self: center;
+  background: rgba(100, 108, 255, 0.1);
+  color: #646cff;
+  border: 1px solid rgba(100, 108, 255, 0.2);
+  font-style: italic;
+  animation: pulse 1.5s infinite;
+}
+
 .qa-play-button {
   background: #ffd700;
   color: #000;

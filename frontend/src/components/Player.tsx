@@ -6,6 +6,7 @@ import { apiUrl } from '../lib/api'
 import { Issue, Segment, TopicGroup, ConversationMessage } from '../types'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import Loading from './Loading'
+import { QA_CONFIG } from '../config'
 import './Player.css'
 
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
@@ -25,11 +26,15 @@ export default function Player() {
   const [qaAudioUrl, setQaAudioUrl] = useState<string | null>(null)
   const [isPlayingQaAudio, setIsPlayingQaAudio] = useState(false)
   const [qaPlaybackFailed, setQaPlaybackFailed] = useState(false)
+  const [isResumingNewsletter, setIsResumingNewsletter] = useState(false)
 
   // Refs for Q&A
   const savedNewsletterPositionRef = useRef<number>(0)
+  const savedNewsletterDurationRef = useRef<number>(0)
   const savedNewsletterSrcRef = useRef<string | null>(null)
   const wasPlayingBeforeQa = useRef(false)
+  const isPlayingQaAudioRef = useRef(false)
+  const isResumingNewsletterRef = useRef(false)
   const processedAudioRef = useRef<Blob | null>(null) // To prevent double submission
 
   // Bookmark state
@@ -162,6 +167,7 @@ export default function Player() {
     if (qaAudioUrl && audioRef.current) {
       // Save newsletter state
       savedNewsletterPositionRef.current = audioRef.current.currentTime
+      savedNewsletterDurationRef.current = duration
       savedNewsletterSrcRef.current = audioRef.current.src
 
       // Pause newsletter (just in case)
@@ -169,6 +175,7 @@ export default function Player() {
 
       // Switch to Q&A audio
       setIsPlayingQaAudio(true)
+      isPlayingQaAudioRef.current = true
       setQaPlaybackFailed(false)
       audioRef.current.src = qaAudioUrl
 
@@ -327,17 +334,28 @@ export default function Player() {
     if (isPlayingQaAudio) {
       // Q&A audio finished - restore newsletter
       setIsPlayingQaAudio(false)
+      isPlayingQaAudioRef.current = false
       setQaAudioUrl(null)
       setQaPlaybackFailed(false)
+      setIsResumingNewsletter(true)
+      isResumingNewsletterRef.current = true
 
-      if (audioRef.current && savedNewsletterSrcRef.current) {
-        audioRef.current.src = savedNewsletterSrcRef.current
-        audioRef.current.currentTime = savedNewsletterPositionRef.current
+      // Delay before resuming
+      setTimeout(() => {
+        if (audioRef.current && savedNewsletterSrcRef.current) {
+          audioRef.current.src = savedNewsletterSrcRef.current
+          audioRef.current.currentTime = savedNewsletterPositionRef.current
+          setDuration(savedNewsletterDurationRef.current)
 
-        if (wasPlayingBeforeQa.current) {
-          audioRef.current.play().catch(() => { })
+          if (wasPlayingBeforeQa.current) {
+            audioRef.current.play().catch(() => { })
+          }
         }
-      }
+        setIsResumingNewsletter(false)
+        isResumingNewsletterRef.current = false
+        setShowQaPanel(false)
+      }, QA_CONFIG.RESUME_DELAY_MS)
+
       return
     }
 
@@ -352,19 +370,22 @@ export default function Player() {
   }
 
   const handleTimeUpdate = () => {
-    // Only update main time if NOT playing QA audio
-    if (audioRef.current && !isPlayingQaAudio) {
+    // Only update main time if NOT playing QA audio and NOT resuming
+    // Use refs to avoid race conditions/stale closures
+    if (audioRef.current && !isPlayingQaAudioRef.current && !isResumingNewsletterRef.current) {
       setCurrentTime(audioRef.current.currentTime)
     }
   }
 
   const handleLoadedMetadata = () => {
-    if (audioRef.current) {
+    if (audioRef.current && !isPlayingQaAudioRef.current && !isResumingNewsletterRef.current) {
       setDuration(audioRef.current.duration)
     }
   }
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isPlayingQaAudioRef.current || isResumingNewsletterRef.current) return
+
     if (audioRef.current && duration > 0) {
       const rect = e.currentTarget.getBoundingClientRect()
       const clickX = e.clientX - rect.left
@@ -586,6 +607,11 @@ export default function Player() {
             {recorderError && (
               <div className="qa-message error">
                 <p>Error: {recorderError}</p>
+              </div>
+            )}
+            {isResumingNewsletter && (
+              <div className="qa-message resuming">
+                <p>Resuming newsletter...</p>
               </div>
             )}
           </div>
