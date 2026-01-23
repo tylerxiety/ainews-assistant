@@ -3,7 +3,9 @@
  */
 
 // Backend API URL - consistent across all components
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Use conditional check to allow empty string (relative path) which || would treat as falsy
+const envUrl = import.meta.env.VITE_API_URL;
+export const API_URL = envUrl !== undefined ? envUrl : 'http://localhost:8080';
 
 /**
  * Helper to build API endpoint URLs

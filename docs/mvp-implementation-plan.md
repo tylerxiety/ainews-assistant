@@ -215,7 +215,7 @@ Build a PWA that converts AINews newsletter into listenable audio with clean TTS
 
 - [x] 🟩 **Step 21: Frontend Deployment**
   - [x] 🟩 Configure Vercel project (ainews-assistant)
-  - [x] 🟩 Set environment variables in Vercel (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+  - [x] 🟩 Set environment variables in Vercel (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_URL)
   - [x] 🟩 Deploy frontend (https://ainews-assistant.vercel.app)
   - [x] 🟩 CORS already configured for all origins
   - [x] 🟩 Test production deployment end-to-end
