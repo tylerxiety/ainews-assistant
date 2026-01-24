@@ -20,14 +20,20 @@ Do NOT update the plan document yet — wait until the end.
 ```
 for iteration in 1..3:
     1. PROVE IT WORKS (behavioral)
-       - Backend logic: Run in REPL or curl with real input, verify output
-       - Frontend: Use browser tools to click through the feature
-       - "Build passes" is NOT proof. Actually exercise the code path.
+       - Execute the **Testing** section from the plan document
+       - For each scenario: perform the action, verify the expected outcome
+       - Record actual results (PASS/FAIL + what you observed)
+
+       Fallback (if plan has no Testing section):
+       - Backend: Run in REPL or curl with real input, verify output
+       - Frontend: Use browser tools to navigate and interact with the feature
+
+       "Build passes" is NOT proof. Actually exercise the code path.
 
     2. SELF-REVIEW (logic)
-       - Resource cleanup (useEffect returns, file handles, event listeners)
-       - Edge cases (empty state, error state, race conditions)
-       - Hardcoded values that should be constants/config
+       - Follow the checklist in `/review` (scoped to files touched only)
+       - Focus on CRITICAL and HIGH severity items first
+       - Record any issues found with [File:line] format
 
     3. AUTOMATED CHECKS
        - Type check: mypy, tsc --noEmit

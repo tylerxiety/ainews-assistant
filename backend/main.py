@@ -42,26 +42,22 @@ async def shutdown_event():
     logger.info("Newsletter Audio Processor shutting down")
 
 # CORS middleware for frontend access
-# In production, set ALLOWED_ORIGINS env var (comma-separated)
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+from config import Config
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=Config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize processor
+# Initialize processor with secrets from .env (config from config.yaml)
 processor = NewsletterProcessor(
-    supabase_url=os.getenv("SUPABASE_URL"),
-    supabase_key=os.getenv("SUPABASE_SERVICE_KEY"),
-    gcp_project_id=os.getenv("GCP_PROJECT_ID"),
-    gcp_region=os.getenv("GCP_REGION"),
-    gcs_bucket_name=os.getenv("GCS_BUCKET_NAME"),
-    gemini_model_name=os.getenv("GEMINI_MODEL", "gemini-3-pro-preview"),
-    max_concurrent_segments=int(os.getenv("MAX_CONCURRENT_SEGMENTS", "5")),
-    tts_voice_name=os.getenv("TTS_VOICE_NAME", "en-US-Chirp3-HD-Aoede"),
+    supabase_url=Config.SUPABASE_URL,
+    supabase_key=Config.SUPABASE_KEY,
+    gcp_project_id=Config.GCP_PROJECT_ID,
+    gcs_bucket_name=Config.GCS_BUCKET_NAME,
 )
 
 
@@ -69,37 +65,10 @@ class ProcessRequest(BaseModel):
     url: HttpUrl
 
 
-class AskRequest(BaseModel):
-    issue_id: str
-    group_id: str
-    question: str
-
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "newsletter-audio-processor"}
-
-
-@app.post("/ask")
-async def ask_question(request: AskRequest):
-    """
-    Ask a question about a specific topic group.
-    """
-    try:
-        answer_text, audio_url = await processor.ask(
-            request.question,
-            request.issue_id,
-            request.group_id
-        )
-
-        return {
-            "answer": answer_text,
-            "audio_url": audio_url
-        }
-    except Exception as e:
-        logger.error(f"Error in ask_question: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error") from None
 
 
 @app.post("/ask-audio")

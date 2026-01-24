@@ -1,0 +1,87 @@
+# =============================================================================
+# AI News Assistant - Centralized Configuration
+# =============================================================================
+#
+# This is the single source of truth for all non-secret settings.
+# 
+# To find settings:
+#   - Frontend behavior → frontend section
+#   - AI models & processing → backend section  
+#   - LLM prompts → prompts section
+#   - Secrets (API keys) → backend/.env
+#
+# =============================================================================
+
+# =============================================================================
+# FRONTEND
+# =============================================================================
+frontend:
+  qa:
+    # Delay in ms before resuming newsletter after Q&A answer ends
+    resumeDelayMs: 1500
+    # Maximum duration for recording a question (30 seconds)
+    maxRecordingDurationMs: 30000
+
+# =============================================================================
+# BACKEND
+# =============================================================================
+backend:
+  processing:
+    # Number of topic groups to process in parallel
+    maxConcurrentSegments: 5
+    # HTTP client timeout for fetching newsletters
+    httpTimeoutSeconds: 30.0
+    # Batch size for inserting segments into database
+    segmentBatchSize: 50
+  
+  ai:
+    models:
+      # Model for cleaning newsletter text for TTS (needs high reasoning)
+      # Gemini 3 Pro Preview requires global region, 
+      # so currently set location="global" in code
+      textCleaning: "gemini-3-pro-preview"
+      # Model for Q&A (transcribe + answer) 
+      qa: "gemini-3-pro-preview"
+  
+  tts:
+    voiceName: "en-US-Chirp3-HD-Aoede"
+    languageCode: "en-US"
+    speakingRate: 1.0
+
+# =============================================================================
+# PROMPTS
+# =============================================================================
+prompts:
+  textCleaning: |
+    Clean the following list of newsletter texts for text-to-speech.
+    Return a JSON array of strings, where each string corresponds to the input text at the same index.
+
+    Rules:
+    1. Replace "@username" with "[username] tweeted"
+    2. Replace "/r/subreddit" with "the [subreddit] subreddit"
+    3. For markdown links [text](url), keep only the text
+    4. If a text seems to be a header, keep it conversational (e.g. prefix with "Now:")
+    5. Keep natural
+    6. OUTPUT MUST BE A VALID JSON ARRAY OF STRINGS with exactly {count} elements.
+
+    <texts_to_clean>
+    {texts_json}
+    </texts_to_clean>
+
+  qaWithAudio: |
+    You are an AI assistant helping a user listen to a newsletter.
+    The user is listening to a section with the following content:
+
+    <content>
+    {context}
+    </content>
+
+    The user asked a question via audio. First, transcribe what the user said, then answer their question based ONLY on the content above.
+
+    Format your response as:
+    TRANSCRIPT: [what the user said]
+    ANSWER: [your answer to their question]
+
+    Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
+    Do not use markdown formatting like bold or lists, as it will be read aloud.
+    If the answer is not in the content, say so politely.

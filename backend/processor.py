@@ -20,6 +20,8 @@ from google.cloud import storage, texttospeech
 from supabase import Client, create_client
 from vertexai.generative_models import GenerativeModel, Part
 
+from config import Config, Prompts
+
 
 class NewsletterProcessor:
     """Processes newsletters: fetch, parse, clean, TTS, and store."""
@@ -29,41 +31,39 @@ class NewsletterProcessor:
         supabase_url: str,
         supabase_key: str,
         gcp_project_id: str,
-        gcp_region: str,
         gcs_bucket_name: str,
-        gemini_model_name: str = "gemini-3-pro-preview",
-        max_concurrent_segments: int = 5,
-        tts_voice_name: str = "en-US-Chirp3-HD-Aoede",
     ):
-        """Initialize processor with credentials."""
+        """Initialize processor with credentials and config from YAML."""
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self.gcp_project_id = gcp_project_id
-        self.gcp_region = gcp_region
         self.gcs_bucket_name = gcs_bucket_name
-        self.max_concurrent_segments = max_concurrent_segments
+        self.max_concurrent_segments = Config.MAX_CONCURRENT_SEGMENTS
 
         # Initialize GCP clients
         # Gemini 3 Pro Preview requires global region
         vertexai.init(project=gcp_project_id, location="global")
-        self.gemini_model = GenerativeModel(gemini_model_name)
-        logger.info(f"Initialized processor with Gemini model: {gemini_model_name}")
+        
+        # Separate models for different tasks (configurable in config.yaml)
+        self.gemini_model_cleaning = GenerativeModel(Config.GEMINI_MODEL_TEXT_CLEANING)
+        self.gemini_model_qa = GenerativeModel(Config.GEMINI_MODEL_QA)
+        logger.info(f"Initialized with models - cleaning: {Config.GEMINI_MODEL_TEXT_CLEANING}, Q&A: {Config.GEMINI_MODEL_QA}")
 
         self.tts_client = texttospeech.TextToSpeechClient()
         self.storage_client = storage.Client()
 
-        # TTS voice configuration
+        # TTS voice configuration from config.yaml
         self.voice = texttospeech.VoiceSelectionParams(
-            language_code="en-US",
-            name=tts_voice_name,
+            language_code=Config.TTS_LANGUAGE_CODE,
+            name=Config.TTS_VOICE_NAME,
         )
-        logger.info(f"Using TTS voice: {tts_voice_name}")
+        logger.info(f"Using TTS voice: {Config.TTS_VOICE_NAME}")
         self.audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3,
-            speaking_rate=1.0,
+            speaking_rate=Config.TTS_SPEAKING_RATE,
         )
         
-        # Shared HTTP client
-        self.http_client = httpx.AsyncClient(timeout=30.0)
+        # Shared HTTP client with configurable timeout
+        self.http_client = httpx.AsyncClient(timeout=Config.HTTP_TIMEOUT)
 
     async def close(self):
         """Close resources."""
@@ -228,10 +228,9 @@ class NewsletterProcessor:
             
             # 3. Batch Insert Segments
             if all_segments:
-                 # Batch insert
-                batch_size = 50
-                for i in range(0, len(all_segments), batch_size):
-                    batch = all_segments[i:i + batch_size]
+                 # Batch insert using config value
+                for i in range(0, len(all_segments), Config.SEGMENT_BATCH_SIZE):
+                    batch = all_segments[i:i + Config.SEGMENT_BATCH_SIZE]
                     self.supabase.table("segments").insert(batch).execute()
                 logger.info(f"Inserted {len(all_segments)} segments for issue {issue_id}")
 
@@ -445,30 +444,20 @@ class NewsletterProcessor:
     async def _clean_texts_batch(self, texts: list[str]) -> list[str]:
         """
         Clean a list of texts using Gemini in one call.
+        Uses the text cleaning model and prompt from config.yaml.
         """
         if not texts:
             return []
 
-        prompt = """
-Clean the following list of newsletter texts for text-to-speech.
-Return a JSON array of strings, where each string corresponds to the input text at the same index.
-
-Rules:
-1. Replace "@username" with "[username] tweeted"
-2. Replace "/r/subreddit" with "the [subreddit] subreddit"
-3. For markdown links [text](url), keep only the text
-4. If a text seems to be a header, keep it conversational (e.g. prefix with "Now:")
-5. Keep natural
-6. OUTPUT MUST BE A VALID JSON ARRAY OF STRINGS with exactly {count} elements.
-
-<texts_to_clean>
-{texts_json}
-</texts_to_clean>
-""".format(texts_json=json.dumps(texts), count=len(texts))
+        # Use prompt from config.yaml
+        prompt = Prompts.TEXT_CLEANING.format(
+            texts_json=json.dumps(texts), 
+            count=len(texts)
+        )
 
         try:
             response = await asyncio.to_thread(
-                self.gemini_model.generate_content,
+                self.gemini_model_cleaning.generate_content,
                 prompt,
                 generation_config={"response_mime_type": "application/json"}
             )
@@ -549,88 +538,6 @@ Rules:
 
         return audio_url, duration_ms
 
-    async def ask(self, question: str, issue_id: str, group_id: str) -> tuple[str, str]:
-        """
-        Answer a question about a specific topic group in a newsletter issue.
-        
-        Args:
-            question: User's question
-            issue_id: Issue UUID
-            group_id: Topic Group UUID
-            
-        Returns:
-            tuple: (answer_text, audio_url)
-        """
-        # 1. Fetch context (segments) for the group
-        segments_resp = self.supabase.table("segments") \
-            .select("content_clean, content_raw") \
-            .eq("topic_group_id", group_id) \
-            .order("order_index") \
-            .execute()
-            
-        if not segments_resp.data:
-            return "I couldn't find the content for this section.", ""
-            
-        # Combine text
-        context_text = "\n".join([
-            s.get("content_clean") or s.get("content_raw", "") 
-            for s in segments_resp.data
-        ])
-        
-        # 2. Call Gemini
-        prompt = f"""
-You are an AI assistant helping a user listen to a newsletter.
-The user is listening to a section with the following content:
-
-<content>
-{context_text}
-</content>
-
-The user asks: "{question}"
-
-Answer the question based ONLY on the content above. 
-Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
-Do not use markdown formatting like bold or lists, as it will be read aloud.
-If the answer is not in the content, say so politely.
-"""
-        response = await asyncio.to_thread(
-            self.gemini_model.generate_content,
-            prompt
-        )
-        answer_text = response.text.strip()
-        
-        # 3. Generate Audio
-        # Use a unique ID for the Q&A audio file
-        qa_id = str(uuid.uuid4())
-        
-        # We'll use a specific folder for Q&A
-        blob_name = f"{issue_id}/qna/{qa_id}.mp3"
-        
-        synthesis_input = texttospeech.SynthesisInput(text=answer_text)
-        
-        # Generate audio
-        tts_response = await asyncio.to_thread(
-            self.tts_client.synthesize_speech,
-            input=synthesis_input,
-            voice=self.voice,
-            audio_config=self.audio_config,
-        )
-
-        bucket = self.storage_client.bucket(self.gcs_bucket_name)
-        blob = bucket.blob(blob_name)
-
-        await asyncio.to_thread(
-            blob.upload_from_string,
-            tts_response.audio_content,
-            content_type="audio/mpeg",
-        )
-
-        # Make blob public or generate signed URL
-        blob.make_public()
-        audio_url = blob.public_url
-        
-        return answer_text, audio_url
-
     async def ask_with_audio(
         self, audio_file, issue_id: str, group_id: str
     ) -> tuple[str, str, str]:
@@ -687,24 +594,8 @@ If the answer is not in the content, say so politely.
             ])
 
             # 3. Call Gemini with audio + context (single call: transcribe + answer)
-            prompt = f"""
-You are an AI assistant helping a user listen to a newsletter.
-The user is listening to a section with the following content:
-
-<content>
-{context_text}
-</content>
-
-The user asked a question via audio. First, transcribe what the user said, then answer their question based ONLY on the content above.
-
-Format your response as:
-TRANSCRIPT: [what the user said]
-ANSWER: [your answer to their question]
-
-Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
-Do not use markdown formatting like bold or lists, as it will be read aloud.
-If the answer is not in the content, say so politely.
-"""
+            # Use Q&A prompt from config.yaml
+            prompt = Prompts.QA_WITH_AUDIO.format(context=context_text)
 
             # Create audio part from GCS URI
             audio_part = Part.from_uri(
@@ -713,7 +604,7 @@ If the answer is not in the content, say so politely.
             )
 
             response = await asyncio.to_thread(
-                self.gemini_model.generate_content,
+                self.gemini_model_qa.generate_content,
                 [audio_part, prompt]
             )
 

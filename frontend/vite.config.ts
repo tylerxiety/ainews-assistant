@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import yaml from '@rollup/plugin-yaml'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    yaml(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.svg', 'icon-512.svg'],

@@ -43,6 +43,22 @@ Key architectural/implementation choices made during exploration:
 
 ...
 
+## Testing (Required)
+
+### Approach
+[browser-based / API (curl/REPL) / unit tests / manual]
+
+### Test Scenarios
+- [ ] 🟥 Scenario 1: [user action or input] → [expected outcome]
+- [ ] 🟥 Scenario 2: [edge case] → [expected behavior]
+- [ ] 🟥 Scenario 3: [error case] → [expected handling]
+
+### Acceptance Criteria
+- [ ] [Observable proof that the feature works end-to-end]
+- [ ] [Key behavior verified]
+
+**Note:** Be specific. "Works correctly" is not a criterion. "Audio resumes from saved position after Q&A ends" is.
+
 ## Output Location
 
 Save the plan to `docs/<feature-name>-plan.md` (lowercase, hyphenated). UPPERCASE names are reserved for user-created docs.

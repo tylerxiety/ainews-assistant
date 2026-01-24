@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-
-const MAX_RECORDING_DURATION_MS = 30000 // 30 seconds
+import { CONFIG } from '../config'
 
 export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false)
@@ -74,7 +73,7 @@ export function useAudioRecorder() {
           mediaRecorderRef.current.stop()
           setIsRecording(false)
         }
-      }, MAX_RECORDING_DURATION_MS)
+      }, CONFIG.qa.maxRecordingDurationMs)
 
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to access microphone'

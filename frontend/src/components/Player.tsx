@@ -6,7 +6,7 @@ import { apiUrl } from '../lib/api'
 import { Issue, Segment, TopicGroup, ConversationMessage } from '../types'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import Loading from './Loading'
-import { QA_CONFIG } from '../config'
+import { CONFIG } from '../config'
 import './Player.css'
 
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
@@ -354,7 +354,7 @@ export default function Player() {
         setIsResumingNewsletter(false)
         isResumingNewsletterRef.current = false
         setShowQaPanel(false)
-      }, QA_CONFIG.RESUME_DELAY_MS)
+      }, CONFIG.qa.resumeDelayMs)
 
       return
     }
