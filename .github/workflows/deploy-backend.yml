@@ -34,6 +34,8 @@ jobs:
 
       - name: Build Docker Image
         run: |
+          # Copy config.yaml to backend directory so it's in the build context
+          cp config.yaml backend/
           cd backend
           docker build -t $IMAGE_NAME .
 

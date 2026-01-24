@@ -15,8 +15,18 @@ from pathlib import Path
 
 import yaml
 
-# Load YAML config from project root
-_config_path = Path(__file__).parent.parent / "config.yaml"
+# Load YAML config
+# In production (Docker), config.yaml is copied to /app/config.yaml (same dir as this file)
+# In development, it's in the project root (../config.yaml)
+current_dir = Path(__file__).parent
+_config_path = current_dir / "config.yaml"
+
+if not _config_path.exists():
+    _config_path = current_dir.parent / "config.yaml"
+
+if not _config_path.exists():
+    raise FileNotFoundError(f"config.yaml not found in {current_dir} or {current_dir.parent}")
+
 with open(_config_path) as f:
     _raw_config = yaml.safe_load(f)
 
