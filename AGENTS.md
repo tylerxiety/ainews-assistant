@@ -1,7 +1,7 @@
 # Project Instructions
 
 ## Overview
-AI News Assistant - PWA that converts AINews newsletter into listenable audio with visual sync and tap-to-bookmark to ClickUp.
+AI News Assistant - PWA that converts AINews newsletter into listenable audio with visual sync, voice Q&A, and tap-to-bookmark to ClickUp. Newsletters are auto-processed every 6 hours via Cloud Scheduler.
 
 ## Tech Stack
 - **Frontend**: Vite + React + TypeScript + plain CSS (PWA on Vercel)
@@ -9,8 +9,14 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 - **Database**: Supabase (Postgres)
 - **Storage**: Google Cloud Storage (audio files)
 - **TTS**: Google Cloud TTS (Chirp 3 HD Aoede)
-- **Text Cleaning**: Gemini 3 Pro
+- **AI**: Gemini 3 Pro Preview (text cleaning + Q&A transcription)
 - **Task Integration**: ClickUp API
+- **Config**: Centralized `config.yaml` (shared by frontend/backend)
+
+## Key Decisions
+- **Voice Q&A uses MediaRecorder + server-side Gemini** (not Web Speech API) — Web Speech API had garbled transcription on iOS Safari/Chrome
+- **Topic grouping with combined audio** — Groups header + items into single TTS call, reduces API calls by ~75%
+- **Single audio element for newsletter + Q&A** — Reuses unlocked audio element to bypass iOS autoplay restrictions
 
 ## Conventions
 
@@ -34,6 +40,7 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 ### General
 - Keep solutions simple — don't over-engineer
 - No debug code or TODOs in commits
+- **All config changes go in `/config.yaml`** — frontend imports via rollup-plugin-yaml, backend loads with PyYAML
 
 ### Testing & Debugging
 - **Do NOT create standalone test scripts** (e.g., `test_*.py`, `simple_test.py`, `check_*.py`)
