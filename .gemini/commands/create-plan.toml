@@ -45,7 +45,7 @@ Key architectural/implementation choices made during exploration:
 ## Testing (Required)
 
 ### Approach
-[browser-based / API (curl/REPL) / unit tests / manual]
+[browser agent or MCP tools / API (curl/REPL) / unit tests / manual]
 
 ### Test Scenarios
 - [ ] 🟥 Scenario 1: [user action or input] → [expected outcome]

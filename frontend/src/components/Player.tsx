@@ -5,6 +5,7 @@ import { isClickUpConfigured, createClickUpTask } from '../lib/clickup'
 import { apiUrl } from '../lib/api'
 import { Issue, Segment, TopicGroup, ConversationMessage } from '../types'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
+import { usePlaybackState } from '../hooks/usePlaybackState'
 import Loading from './Loading'
 import { CONFIG } from '../config'
 import './Player.css'
@@ -45,15 +46,19 @@ export default function Player() {
   // Audio state
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const shouldAutoPlayRef = useRef(false)
-  const groupRefs = useRef<(HTMLDivElement | null)[]>([])
   const hasInteractedRef = useRef(false) // Track if user has interacted (to skip initial scroll)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0)
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  
+  // Pointer tracking for tap vs scroll
+  const pointerStartRef = useRef<{x: number, y: number} | null>(null)
 
-  // Q&A Effects
+  // Playback State Persistence
+  const { restoredState, clearState } = usePlaybackState(issueId, currentGroupIndex, currentSegmentIndex)
 
   // Handle audio recording completion
   useEffect(() => {
@@ -209,8 +214,8 @@ export default function Player() {
       try {
         const { issue, groups } = await fetchIssueWithGroups(issueId)
         setIssue(issue)
-        // Only groups with audio
-        setGroups(groups.filter((g) => g.audio_url))
+        // Keep all groups; playback uses per-segment audio only
+        setGroups(groups)
 
         // Load existing bookmarks
         try {
@@ -219,8 +224,6 @@ export default function Player() {
           setBookmarkedSegments(bookmarkedIds)
         } catch (err) {
           // Bookmarks table might not exist yet, silently ignore
-          // In development, log for debugging
-
         }
       } catch (err: any) {
         setError(err.message || 'Unknown error')
@@ -231,10 +234,42 @@ export default function Player() {
     loadData()
   }, [issueId])
 
-  // Set audio source when current group changes
+  // Restore state logic
   useEffect(() => {
-    if (audioRef.current && groups[currentGroupIndex]?.audio_url) {
+    if (restoredState && !loading && groups.length > 0) {
+      // Validate indices
+      if (restoredState.groupIndex < groups.length) {
+        const group = groups[restoredState.groupIndex]
+        if (restoredState.segmentIndex < group.segments.length) {
+          setCurrentGroupIndex(restoredState.groupIndex)
+          setCurrentSegmentIndex(restoredState.segmentIndex)
+          hasInteractedRef.current = true // Allow auto-scroll
+        }
+      }
+    }
+  }, [restoredState, loading, groups])
+
+  // Get current audio URL (per-segment only)
+  const getCurrentAudio = () => {
+      const group = groups[currentGroupIndex]
+      if (!group) return null
+
+      const segment = group.segments[currentSegmentIndex]
+      return segment?.audio_url || null
+  }
+
+  const currentAudioUrl = getCurrentAudio()
+
+  // Set audio source when indices change
+  useEffect(() => {
+    if (audioRef.current && currentAudioUrl) {
       const audio = audioRef.current
+
+      // Avoid reloading if URL hasn't changed (optimization)
+      const currentSrc = audio.currentSrc || audio.src
+      if (currentSrc === currentAudioUrl) {
+          return
+      }
 
       // Reset time display while loading
       setCurrentTime(0)
@@ -253,14 +288,14 @@ export default function Player() {
       }
 
       audio.addEventListener('canplay', handleCanPlay)
-      audio.src = groups[currentGroupIndex].audio_url || ''
+      audio.src = currentAudioUrl
       audio.load()
 
       return () => {
         audio.removeEventListener('canplay', handleCanPlay)
       }
     }
-  }, [currentGroupIndex, groups, loading])
+  }, [currentAudioUrl, loading])
 
   // Update playback rate when speed changes
   useEffect(() => {
@@ -269,28 +304,38 @@ export default function Player() {
     }
   }, [playbackSpeed])
 
-  // Clear refs when groups change
-  useEffect(() => {
-    groupRefs.current = groupRefs.current.slice(0, groups.length)
-  }, [groups])
-
-  // Auto-scroll to current group (only after user interaction)
+  // Auto-scroll to current SEGMENT (only after user interaction)
   useEffect(() => {
     if (!hasInteractedRef.current) return
 
-    const currentRef = groupRefs.current[currentGroupIndex]
-    if (currentRef) {
-      currentRef.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      })
+    // Find the ref for current segment
+    // We need a way to map group/segment indices to the ref array
+    // Since we render nested loops, we can maintain a flat ref map or string ID refs
+    
+    // Easier: Use ID based selector or a consistent flat index?
+    // Let's use ID based lookup for simplicity in scrolling
+    const currentGroup = groups[currentGroupIndex]
+    if (currentGroup) {
+        const currentSegment = currentGroup.segments[currentSegmentIndex]
+        if (currentSegment) {
+            const el = document.getElementById(`segment-${currentSegment.id}`)
+            if (el) {
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                })
+            }
+        }
     }
-  }, [currentGroupIndex])
+  }, [currentGroupIndex, currentSegmentIndex, groups])
 
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     const target = e.target as HTMLAudioElement
-    setError(`Audio playback failed: ${target.error?.message || 'Unknown error'}`)
-    setIsPlaying(false)
+    // Only report error if we actually have a source
+    if (target.src) {
+        setError(`Audio playback failed: ${target.error?.message || 'Unknown error'}`)
+        setIsPlaying(false)
+    }
   }
 
   const handlePlay = () => {
@@ -305,7 +350,8 @@ export default function Player() {
             console.error("Play failed:", err)
           }
           if (err.name !== 'AbortError') {
-            setError(`Playback failed: ${err.message}`)
+            // Don't show error immediately, user might just need to interact
+            // setError(`Playback failed: ${err.message}`)
           }
           setIsPlaying(false)
         })
@@ -359,13 +405,25 @@ export default function Player() {
       return
     }
 
+    // Normal Playback Ended
+    // Move to next segment in group
+    const currentGroup = groups[currentGroupIndex]
+    if (currentGroup && currentSegmentIndex < currentGroup.segments.length - 1) {
+      setCurrentSegmentIndex(currentSegmentIndex + 1)
+      shouldAutoPlayRef.current = true
+      return
+    }
+
     // Move to next group
     if (currentGroupIndex < groups.length - 1) {
-      shouldAutoPlayRef.current = true
       setCurrentGroupIndex(currentGroupIndex + 1)
+      setCurrentSegmentIndex(0)
+      shouldAutoPlayRef.current = true
     } else {
+      // Finished all groups
       shouldAutoPlayRef.current = false
       setIsPlaying(false)
+      clearState()
     }
   }
 
@@ -394,12 +452,31 @@ export default function Player() {
     }
   }
 
-  const handleGroupClick = (index: number) => {
+  // Pointer event handlers for tap vs scroll
+  const handlePointerDown = (e: React.PointerEvent) => {
+      pointerStartRef.current = { x: e.clientX, y: e.clientY }
+  }
+  
+  const handlePointerUp = (e: React.PointerEvent, groupIndex: number, segmentIndex: number) => {
+      if (!pointerStartRef.current) return
+      
+      const dx = Math.abs(e.clientX - pointerStartRef.current.x)
+      const dy = Math.abs(e.clientY - pointerStartRef.current.y)
+      
+      // If movement is small, treat as click/tap
+      if (dx < 10 && dy < 10) {
+          handleSegmentClick(groupIndex, segmentIndex)
+      }
+      pointerStartRef.current = null
+  }
+
+  const handleSegmentClick = (groupIndex: number, segmentIndex: number) => {
     hasInteractedRef.current = true
-    setCurrentGroupIndex(index)
-    if (!isPlaying) {
-      handlePlay()
-    }
+    setCurrentGroupIndex(groupIndex)
+    setCurrentSegmentIndex(segmentIndex)
+    shouldAutoPlayRef.current = true
+    // If we were paused, play
+    // If we were playing, this will switch source and play
   }
 
   const cyclePlaybackSpeed = () => {
@@ -527,8 +604,6 @@ export default function Player() {
         onError={handleAudioError}
       />
 
-
-
       {/* Audio controls */}
       <div className="audio-controls">
         <button
@@ -623,54 +698,65 @@ export default function Player() {
         {groups.length === 0 ? (
           <p className="no-segments">No audio segments available.</p>
         ) : (
-          groups.map((group, index) => (
+          groups.map((group, groupIndex) => (
             <div
               key={group.id}
-              ref={(el) => { groupRefs.current[index] = el }}
-              className={`segment topic-group ${index === currentGroupIndex ? 'active' : ''}`}
-              onClick={() => handleGroupClick(index)}
+              id={`group-${group.id}`}
+              className={`topic-group ${groupIndex === currentGroupIndex ? 'group-active' : ''}`}
             >
               <div className="group-content">
                 {group.label && <h3 className="group-title">{group.label}</h3>}
 
                 <div className="group-items">
-                  {group.segments.map((segment) => (
-                    <div key={segment.id} className="group-item">
-                      <p>{segment.content_raw}</p>
+                  {group.segments.map((segment, segmentIndex) => {
+                      const isActive = groupIndex === currentGroupIndex && segmentIndex === currentSegmentIndex
+                      return (
+                        <div 
+                          key={segment.id} 
+                          id={`segment-${segment.id}`}
+                          className={`segment group-item ${isActive ? 'active' : ''}`}
+                          onPointerDown={handlePointerDown}
+                          onPointerUp={(e) => handlePointerUp(e, groupIndex, segmentIndex)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <p>{segment.content_raw}</p>
 
-                      {segment.links && segment.links.length > 0 && (
-                        <div className="segment-links">
-                          {segment.links.map((link, i) => (
-                            <a
-                              key={i}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {link.text || 'Link'}
-                            </a>
-                          ))}
+                          {segment.links && segment.links.length > 0 && (
+                            <div className="segment-links">
+                              {segment.links.map((link, i) => (
+                                <a
+                                  key={i}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onPointerDown={(e) => e.stopPropagation()} 
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {link.text || 'Link'}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Bookmark button */}
+                          <button
+                            className={`bookmark-btn ${bookmarkedSegments.has(segment.id) ? 'bookmarked' : ''}`}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => handleBookmark(e, segment)}
+                            disabled={bookmarkingSegment === segment.id || bookmarkedSegments.has(segment.id)}
+                            title={bookmarkedSegments.has(segment.id) ? 'Bookmarked to ClickUp' : 'Bookmark to ClickUp'}
+                          >
+                            {bookmarkingSegment === segment.id ? (
+                              <span className="bookmark-loading">⏳</span>
+                            ) : bookmarkedSegments.has(segment.id) ? (
+                              <span className="bookmark-done">✓</span>
+                            ) : (
+                              <span className="bookmark-icon">📌</span>
+                            )}
+                          </button>
                         </div>
-                      )}
-
-                      {/* Bookmark button */}
-                      <button
-                        className={`bookmark-btn ${bookmarkedSegments.has(segment.id) ? 'bookmarked' : ''}`}
-                        onClick={(e) => handleBookmark(e, segment)}
-                        disabled={bookmarkingSegment === segment.id || bookmarkedSegments.has(segment.id)}
-                        title={bookmarkedSegments.has(segment.id) ? 'Bookmarked to ClickUp' : 'Bookmark to ClickUp'}
-                      >
-                        {bookmarkingSegment === segment.id ? (
-                          <span className="bookmark-loading">⏳</span>
-                        ) : bookmarkedSegments.has(segment.id) ? (
-                          <span className="bookmark-done">✓</span>
-                        ) : (
-                          <span className="bookmark-icon">📌</span>
-                        )}
-                      </button>
-                    </div>
-                  ))}
+                      )
+                  })}
                 </div>
               </div>
             </div>

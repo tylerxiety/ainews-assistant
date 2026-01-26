@@ -16,6 +16,8 @@
 # FRONTEND
 # =============================================================================
 frontend:
+  # State persistence expiration in ms (24 hours)
+  playbackStateExpirationMs: 86400000
   qa:
     # Delay in ms before resuming newsletter after Q&A answer ends
     resumeDelayMs: 1500

@@ -69,13 +69,14 @@ class NewsletterProcessor:
         """Close resources."""
         await self.http_client.aclose()
 
-    async def process_newsletter(self, url: str, issue_id: str | None = None) -> str:
+    async def process_newsletter(self, url: str, issue_id: str | None = None, max_groups: int | None = None) -> str:
         """
         Main processing pipeline for a newsletter issue.
 
         Args:
             url: URL of the newsletter issue
             issue_id: Optional pre-generated issue UUID (for background tasks)
+            max_groups: Optional limit on number of topic groups to process (for testing)
 
         Returns:
             str: Issue UUID
@@ -87,28 +88,38 @@ class NewsletterProcessor:
         issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, raw_content, url)
         logger.info(f"Parsed {len(segments_data)} segments from newsletter")
 
-        # Use provided issue_id or get from upsert
+        # Upsert issue and resolve the canonical id
         if issue_id:
-            # For background tasks, insert with specific ID
-            issue_data["id"] = issue_id
+            # Check if this URL already exists with a different id
+            existing = self.supabase.table("issues").select("id").eq("url", url).execute()
+            if existing.data:
+                # URL already exists — use the existing id instead of forcing a new one
+                issue_id = existing.data[0]["id"]
+            else:
+                issue_data["id"] = issue_id
             self.supabase.table("issues").upsert(
                 issue_data,
                 on_conflict="url"
             ).execute()
         else:
-            # Upsert issue to handle race conditions
             issue_result = self.supabase.table("issues").upsert(
                 issue_data,
                 on_conflict="url"
             ).execute()
             issue_id = issue_result.data[0]["id"]
 
-        # Delete old groups (cascades to segments) if reprocessing
+        # Delete old data if reprocessing (segments first since FK is SET NULL, not CASCADE)
+        self.supabase.table("segments").delete().eq("issue_id", issue_id).execute()
         self.supabase.table("topic_groups").delete().eq("issue_id", issue_id).execute()
 
         # Group segments
         groups = self._group_segments(segments_data)
         logger.info(f"Created {len(groups)} topic groups")
+
+        # Limit groups if requested
+        if max_groups is not None:
+            logger.info(f"Limiting to first {max_groups} groups for testing")
+            groups = groups[:max_groups]
 
         # Process groups in parallel
         semaphore = asyncio.Semaphore(self.max_concurrent_segments) # Reuse existing semaphore setting
@@ -129,34 +140,31 @@ class NewsletterProcessor:
                 # 2. Batch clean texts
                 cleaned_texts = await self._clean_texts_batch(texts_to_clean)
                 
-                # 3. Assign back to content and prepare for audio
-                # Handle label
-                final_audio_texts = []
-                idx_offset = 0
+                # 3. Assign cleaned text and generate audio per segment
+                idx_offset = 1 if group["label"] else 0
+                label_text = cleaned_texts[0] if group["label"] else ""
                 
-                if group["label"]:
-                    # Label is the first cleaned text
-                    # We can prefix it with "Now:" or similar if needed, but Gemini handles cleaning
-                    final_audio_texts.append(cleaned_texts[0])
-                    idx_offset = 1
-                
-                # Handle segments
                 for i, seg in enumerate(group["segments"]):
                     clean = cleaned_texts[i + idx_offset]
                     seg["content_clean"] = clean
-                    final_audio_texts.append(clean)
+                    
+                    # Text for audio
+                    text_to_speak = clean
+                    if i == 0 and label_text:
+                        # Prepend label to first segment with a pause
+                        text_to_speak = f"{label_text} ... {clean}"
+                    
+                    # Generate audio for this segment
+                    audio_url, duration_ms = await self._generate_audio(
+                        text_to_speak, issue_id, group["order_index"], i
+                    )
+                    
+                    seg["audio_url"] = audio_url
+                    seg["audio_duration_ms"] = duration_ms
                 
-                # 4. Generate Combined Audio (Step 5)
-                # Concatenate with pauses
-                # Using triple dot ... or explicit break logic in cleaning
-                combined_text = " ... ".join(final_audio_texts)
-                
-                audio_url, duration_ms = await self._generate_audio(
-                    combined_text, issue_id, group["order_index"]
-                )
-                
-                group["audio_url"] = audio_url
-                group["audio_duration_ms"] = duration_ms
+                # Group audio is no longer used
+                group["audio_url"] = None
+                group["audio_duration_ms"] = 0
                 
                 return group
 
@@ -493,7 +501,7 @@ class NewsletterProcessor:
 
 
     async def _generate_audio(
-        self, text: str, issue_id: str, segment_index: int
+        self, text: str, issue_id: str, group_index: int, segment_index: int
     ) -> tuple[str, int]:
         """
         Generate audio using Google Cloud TTS.
@@ -501,7 +509,8 @@ class NewsletterProcessor:
         Args:
             text: Cleaned text to synthesize
             issue_id: Issue UUID
-            segment_index: Segment order index
+            group_index: Group order index (for organization)
+            segment_index: Segment order index (within group)
 
         Returns:
             tuple: (gcs_url, duration_ms)
@@ -517,7 +526,8 @@ class NewsletterProcessor:
         )
 
         # Upload to GCS
-        blob_name = f"{issue_id}/segment_{segment_index}.mp3"
+        # Name: issue_id/group_{group_index}_segment_{segment_index}.mp3
+        blob_name = f"{issue_id}/group_{group_index}_segment_{segment_index}.mp3"
         bucket = self.storage_client.bucket(self.gcs_bucket_name)
         blob = bucket.blob(blob_name)
 

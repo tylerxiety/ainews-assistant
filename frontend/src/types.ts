@@ -21,6 +21,7 @@ export interface Segment {
     content_raw: string
     links?: SegmentLink[]
     audio_url?: string
+    audio_duration_ms?: number
     segment_type: 'section_header' | 'item' | 'topic_header'
     // Allow for other fields from DB
     [key: string]: any

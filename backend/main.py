@@ -220,7 +220,7 @@ async def get_issue_status(issue_id: str):
 
 
 # Only register test endpoint in development
-if os.getenv("ENVIRONMENT", "development") == "development":
+if os.getenv("ENVIRONMENT", "production") == "development":
     @app.post("/process-test")
     async def process_newsletter_test(request: ProcessRequest):
         """

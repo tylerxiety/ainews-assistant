@@ -15,7 +15,7 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 
 ## Key Decisions
 - **Voice Q&A uses MediaRecorder + server-side Gemini** (not Web Speech API) — Web Speech API had garbled transcription on iOS Safari/Chrome
-- **Topic grouping with combined audio** — Groups header + items into single TTS call, reduces API calls by ~75%
+- **Per-segment audio playback** — One TTS call per segment (no group-audio fallback); topic groups are for UI/ordering only
 - **Single audio element for newsletter + Q&A** — Reuses unlocked audio element to bypass iOS autoplay restrictions
 
 ## Conventions
@@ -43,10 +43,11 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 - **All config changes go in `/config.yaml`** — frontend imports via rollup-plugin-yaml, backend loads with PyYAML
 
 ### Testing & Debugging
-- **Do NOT create standalone test scripts** (e.g., `test_*.py`, `simple_test.py`, `check_*.py`)
+- Do NOT create standalone test scripts for commits. Temporary one‑off scripts are OK for local debugging, but must be deleted before final changes (keep in /tests/tmp).
 - To verify functionality works: use existing API endpoints, REPL, or `curl`
 - For debugging: add temporary logging, then remove it — don't create new files
 - If a proper test suite is needed, discuss with user first before setting up pytest/testing infrastructure
+- Use ngrok to expose local dev for mobile testing
 
 ### Documentation
 - Agent-created dev docs (plans, specs) go in `docs/` with **lowercase** names (e.g., `auth-plan.md`)

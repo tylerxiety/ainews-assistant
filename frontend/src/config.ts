@@ -13,6 +13,7 @@ import rawConfig from '../../config.yaml'
 
 // Type definitions for the config
 interface FrontendConfig {
+    playbackStateExpirationMs: number
     qa: {
         resumeDelayMs: number
         maxRecordingDurationMs: number
@@ -29,6 +30,8 @@ const config = rawConfig as unknown as Config
  * Frontend configuration object
  */
 export const CONFIG = {
+    /** State persistence expiration in ms (24 hours) */
+    playbackStateExpirationMs: config.frontend.playbackStateExpirationMs,
     qa: {
         /** Delay in ms before resuming newsletter after Q&A answer ends */
         resumeDelayMs: config.frontend.qa.resumeDelayMs,
