@@ -43,7 +43,7 @@ backend:
       # so currently set location="global" in code
       textCleaning: "gemini-3-pro-preview"
       # Model for Q&A (transcribe + answer) 
-      qa: "gemini-3-pro-preview"
+      qa: "gemini-2.5-flash-lite"
   
   tts:
     voiceName: "en-US-Chirp3-HD-Aoede"

@@ -58,3 +58,4 @@ supabase/.temp
 # temp
 temp/
 .vercel
+.gemini-clipboard
