@@ -61,12 +61,13 @@ export default function IssueList() {
       setTimeout(() => {
         loadIssues()
       }, 1000)
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to start processing'
       if (import.meta.env.DEV) {
-        console.error('Processing failed:', err)
+        console.error('Processing failed:', message)
       }
       setProcessingStatus('error')
-      setProcessError(err.message || 'Failed to start processing')
+      setProcessError(message)
     }
   }
 

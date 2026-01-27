@@ -1,0 +1,195 @@
+.side-panel-scrim {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.side-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 80vw;
+    max-width: 400px;
+    background: var(--color-bg-elevated);
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.side-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-surface);
+}
+
+.side-panel-tabs {
+    display: flex;
+    gap: 16px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 8px 4px;
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+    border-radius: 0;
+}
+
+.tab-btn:hover {
+    color: var(--color-text-primary);
+    border-color: transparent;
+}
+
+.tab-btn.active {
+    color: var(--color-text-primary);
+    border-bottom-color: var(--color-accent);
+}
+
+.close-panel-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 4px;
+}
+
+.close-panel-btn:hover {
+    color: var(--color-text-primary);
+}
+
+.side-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+/* TOC Styles */
+.toc-list {
+    padding: 12px 0;
+}
+
+.toc-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+}
+
+.toc-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.toc-item.active {
+    border-left-color: var(--color-accent);
+    background: rgba(249, 115, 22, 0.1);
+}
+
+.toc-title {
+    font-size: 1rem;
+    color: var(--color-text-primary);
+}
+
+.toc-item.active .toc-title {
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+/* Q&A Styles - Reuse existing Q&A styling concepts but adapt to panel */
+.qa-messages-container {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 100px;
+    /* Space for controls if needed */
+}
+
+.qa-placeholder {
+    text-align: center;
+    color: var(--color-text-dimmed);
+    font-style: italic;
+    margin-top: 40px;
+}
+
+.qa-message {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    max-width: 90%;
+}
+
+.qa-message.user {
+    align-self: flex-end;
+    background: var(--color-accent);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.qa-message.assistant {
+    align-self: flex-start;
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    border-bottom-left-radius: 4px;
+    border: 1px solid var(--color-border);
+}
+
+.qa-message.error {
+    align-self: center;
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--color-error);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.qa-message.resuming {
+    align-self: center;
+    color: var(--color-accent);
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.qa-play-button {
+    background: var(--color-warning);
+    color: black;
+    margin-top: 8px;
+}
+
+.qa-message.listening,
+.qa-message.loading {
+    font-style: italic;
+    opacity: 0.8;
+}

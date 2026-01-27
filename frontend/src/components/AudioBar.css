@@ -1,0 +1,163 @@
+/* Audio Controls */
+.audio-controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg-surface);
+    border-top: 1px solid var(--color-border);
+    z-index: 1100;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.controls-row-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.play-pause-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: white;
+    /* Icon color */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+    transition: transform 0.1s;
+    padding: 0;
+}
+
+.play-pause-btn:active {
+    transform: scale(0.95);
+}
+
+.play-pause-btn:disabled {
+    background: var(--color-text-muted);
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.time-display {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+    min-width: 60px;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.control-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background 0.2s;
+}
+
+.control-btn:hover {
+    color: var(--color-text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.speed-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-width: 24px;
+    text-align: center;
+}
+
+/* Mic Button Special Styling */
+.mic-btn {
+    color: var(--color-text-primary);
+}
+
+.mic-btn:hover {
+    color: var(--color-accent);
+}
+
+.mic-btn.listening {
+    color: var(--color-error);
+    background: rgba(248, 113, 113, 0.1);
+    animation: pulse-red 1.5s infinite;
+}
+
+/* Progress Bar (Full Width) */
+.progress-container {
+    width: 100%;
+    height: 4px;
+    background: var(--color-bg-elevated);
+    cursor: pointer;
+    position: relative;
+}
+
+/* Increase hit area for touch */
+.progress-container::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    bottom: -10px;
+    left: 0;
+    right: 0;
+    z-index: 10;
+}
+
+.progress-bar {
+    height: 100%;
+    background: var(--color-accent);
+    transition: width 0.1s linear;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(248, 113, 113, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(248, 113, 113, 0);
+    }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 600px) {
+    .controls-row-main {
+        padding: 8px 16px;
+        gap: 8px;
+    }
+
+    .play-pause-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    .time-display {
+        font-size: 0.75rem;
+    }
+
+    .control-btn {
+        padding: 6px;
+    }
+}

@@ -1,0 +1,148 @@
+/* Segments List */
+.segments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    /* Reduced gap as per plan */
+}
+
+.no-segments {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: 48px 20px;
+}
+
+.segment {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 12px;
+    /* Reduced padding */
+    background: transparent;
+    /* No card bg by default */
+    border: none;
+    /* No border */
+    border-radius: 0;
+    border-left: 3px solid transparent;
+    /* Prepare for active state */
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    scroll-margin-bottom: 120px;
+}
+
+.segment:hover {
+    background: var(--color-bg-elevated);
+}
+
+.segment.active {
+    border-left-color: var(--color-accent);
+    background: var(--color-bg-active);
+    /* Subtle tint */
+}
+
+.segment-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.segment p {
+    font-size: 1rem;
+    /* Slightly larger text */
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+
+.segment.active p {
+    color: var(--color-text-primary);
+}
+
+/* Inline Links */
+.inline-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+    text-underline-offset: 2px;
+}
+
+.inline-link:hover {
+    color: var(--color-accent);
+    text-decoration-color: var(--color-accent-hover);
+}
+
+/* Bookmark Button */
+.bookmark-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.bookmark-btn:hover:not(:disabled) {
+    color: var(--color-accent);
+    background: var(--color-accent-muted);
+    border-radius: 4px;
+}
+
+.bookmark-btn.bookmarked {
+    color: var(--color-success);
+}
+
+.bookmark-btn:disabled {
+    cursor: default;
+    opacity: 0.8;
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Topic Group Styles */
+.topic-group {
+    display: block;
+    margin-bottom: 24px;
+}
+
+.group-title {
+    margin: 24px 0 16px 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    padding-bottom: 4px;
+}
+
+.group-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* Tight gap for continuous reading */
+}
+
+/* Mobile responsive styles */
+@media (max-width: 600px) {
+    .segment {
+        padding: 8px 12px;
+    }
+
+    .segment p {
+        font-size: 0.95rem;
+    }
+}

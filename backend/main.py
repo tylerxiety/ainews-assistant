@@ -8,10 +8,10 @@ import uuid
 from datetime import UTC, datetime
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, HttpUrl
 
 # Load environment variables
@@ -74,18 +74,16 @@ async def health_check():
 @app.post("/ask-audio")
 async def ask_question_audio(
     audio: UploadFile = File(...),
-    issue_id: str = Form(...),
-    group_id: str = Form(...)
+    issue_id: str = Form(...)
 ):
     """
-    Ask a question about a specific topic group using audio input.
+    Ask a question about the entire newsletter issue using audio input.
     The audio is transcribed and answered in a single Gemini call.
     """
     try:
         answer_text, audio_url, transcript = await processor.ask_with_audio(
             audio,
-            issue_id,
-            group_id
+            issue_id
         )
 
         return {
@@ -254,7 +252,7 @@ if os.getenv("ENVIRONMENT", "production") == "development":
                 segment["content_clean"] = clean_text
 
                 audio_url, duration_ms = await processor._generate_audio(
-                    clean_text, issue_id, segment["order_index"]
+                    clean_text, issue_id, 0, segment["order_index"]
                 )
                 segment["audio_url"] = audio_url
                 segment["audio_duration_ms"] = duration_ms
@@ -348,7 +346,7 @@ if os.getenv("ENVIRONMENT", "production") == "development":
                     # Generate combined audio
                     combined_text = " ... ".join(final_audio_texts)
                     audio_url, duration_ms = await processor._generate_audio(
-                        combined_text, issue_id, group["order_index"]
+                        combined_text, issue_id, group["order_index"], 0
                     )
 
                     group["audio_url"] = audio_url

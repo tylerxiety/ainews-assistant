@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { fetchIssueWithGroups, fetchBookmarks, createBookmark } from '../lib/supabase'
 import { isClickUpConfigured, createClickUpTask } from '../lib/clickup'
@@ -9,6 +9,10 @@ import { usePlaybackState } from '../hooks/usePlaybackState'
 import Loading from './Loading'
 import { CONFIG } from '../config'
 import './Player.css'
+
+import AudioBar from './AudioBar'
+import SegmentList from './SegmentList'
+import SidePanel from './SidePanel'
 
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
 
@@ -23,7 +27,10 @@ export default function Player() {
   const { isRecording, audioBlob, error: recorderError, startRecording, stopRecording } = useAudioRecorder()
   const [messages, setMessages] = useState<ConversationMessage[]>([])
   const [isLoadingAnswer, setIsLoadingAnswer] = useState(false)
-  const [showQaPanel, setShowQaPanel] = useState(false)
+  // Replaced showQaPanel with sidePanel state
+  const [sidePanelOpen, setSidePanelOpen] = useState(false)
+  const [sidePanelTab, setSidePanelTab] = useState<'toc' | 'qa'>('toc')
+
   const [qaAudioUrl, setQaAudioUrl] = useState<string | null>(null)
   const [isPlayingQaAudio, setIsPlayingQaAudio] = useState(false)
   const [qaPlaybackFailed, setQaPlaybackFailed] = useState(false)
@@ -53,9 +60,6 @@ export default function Player() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
-  
-  // Pointer tracking for tap vs scroll
-  const pointerStartRef = useRef<{x: number, y: number} | null>(null)
 
   // Playback State Persistence
   const { restoredState, clearState } = usePlaybackState(issueId, currentGroupIndex, currentSegmentIndex)
@@ -82,7 +86,11 @@ export default function Player() {
       }
 
       processedAudioRef.current = null
-      setShowQaPanel(true)
+
+      // Open panel to QA
+      setSidePanelOpen(true)
+      setSidePanelTab('qa')
+
       startRecording()
     }
   }
@@ -104,7 +112,6 @@ export default function Player() {
       const formData = new FormData()
       formData.append('audio', audioBlob, 'recording.webm')
       formData.append('issue_id', issueId)
-      formData.append('group_id', groups[currentGroupIndex].id)
 
       // Call backend
       const response = await fetch(apiUrl('/ask-audio'), {
@@ -133,6 +140,10 @@ export default function Player() {
         timestamp: Date.now()
       }
       setMessages(prev => [...prev, assistantMsg])
+
+      // Ensure panel is open (it should be)
+      setSidePanelOpen(true)
+      setSidePanelTab('qa')
 
       // Play response audio
       if (data.audio_url) {
@@ -225,8 +236,9 @@ export default function Player() {
         } catch (err) {
           // Bookmarks table might not exist yet, silently ignore
         }
-      } catch (err: any) {
-        setError(err.message || 'Unknown error')
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        setError(message)
       } finally {
         setLoading(false)
       }
@@ -251,11 +263,11 @@ export default function Player() {
 
   // Get current audio URL (per-segment only)
   const getCurrentAudio = () => {
-      const group = groups[currentGroupIndex]
-      if (!group) return null
+    const group = groups[currentGroupIndex]
+    if (!group) return null
 
-      const segment = group.segments[currentSegmentIndex]
-      return segment?.audio_url || null
+    const segment = group.segments[currentSegmentIndex]
+    return segment?.audio_url || null
   }
 
   const currentAudioUrl = getCurrentAudio()
@@ -268,7 +280,7 @@ export default function Player() {
       // Avoid reloading if URL hasn't changed (optimization)
       const currentSrc = audio.currentSrc || audio.src
       if (currentSrc === currentAudioUrl) {
-          return
+        return
       }
 
       // Reset time display while loading
@@ -309,23 +321,19 @@ export default function Player() {
     if (!hasInteractedRef.current) return
 
     // Find the ref for current segment
-    // We need a way to map group/segment indices to the ref array
-    // Since we render nested loops, we can maintain a flat ref map or string ID refs
-    
-    // Easier: Use ID based selector or a consistent flat index?
-    // Let's use ID based lookup for simplicity in scrolling
+    // We used ID based lookup in Player.tsx, now SegmentList also uses IDs
     const currentGroup = groups[currentGroupIndex]
     if (currentGroup) {
-        const currentSegment = currentGroup.segments[currentSegmentIndex]
-        if (currentSegment) {
-            const el = document.getElementById(`segment-${currentSegment.id}`)
-            if (el) {
-                el.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center',
-                })
-            }
+      const currentSegment = currentGroup.segments[currentSegmentIndex]
+      if (currentSegment) {
+        const el = document.getElementById(`segment-${currentSegment.id}`)
+        if (el) {
+          el.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          })
         }
+      }
     }
   }, [currentGroupIndex, currentSegmentIndex, groups])
 
@@ -333,8 +341,8 @@ export default function Player() {
     const target = e.target as HTMLAudioElement
     // Only report error if we actually have a source
     if (target.src) {
-        setError(`Audio playback failed: ${target.error?.message || 'Unknown error'}`)
-        setIsPlaying(false)
+      setError(`Audio playback failed: ${target.error?.message || 'Unknown error'}`)
+      setIsPlaying(false)
     }
   }
 
@@ -399,7 +407,8 @@ export default function Player() {
         }
         setIsResumingNewsletter(false)
         isResumingNewsletterRef.current = false
-        setShowQaPanel(false)
+        // User requested auto-close panel after answer
+        setSidePanelOpen(false)
       }, CONFIG.qa.resumeDelayMs)
 
       return
@@ -427,13 +436,23 @@ export default function Player() {
     }
   }
 
-  const handleTimeUpdate = () => {
+
+  // ... existing imports ...
+
+  // ... inside component ...
+  const lastTimeUpdateRef = useRef(0)
+
+  const handleTimeUpdate = useCallback(() => {
+    const now = Date.now()
+    if (now - lastTimeUpdateRef.current < 250) return
+    lastTimeUpdateRef.current = now
+
     // Only update main time if NOT playing QA audio and NOT resuming
     // Use refs to avoid race conditions/stale closures
     if (audioRef.current && !isPlayingQaAudioRef.current && !isResumingNewsletterRef.current) {
       setCurrentTime(audioRef.current.currentTime)
     }
-  }
+  }, [])
 
   const handleLoadedMetadata = () => {
     if (audioRef.current && !isPlayingQaAudioRef.current && !isResumingNewsletterRef.current) {
@@ -452,47 +471,15 @@ export default function Player() {
     }
   }
 
-  // Pointer event handlers for tap vs scroll
-  const handlePointerDown = (e: React.PointerEvent) => {
-      pointerStartRef.current = { x: e.clientX, y: e.clientY }
-  }
-  
-  const handlePointerUp = (e: React.PointerEvent, groupIndex: number, segmentIndex: number) => {
-      if (!pointerStartRef.current) return
-      
-      const dx = Math.abs(e.clientX - pointerStartRef.current.x)
-      const dy = Math.abs(e.clientY - pointerStartRef.current.y)
-      
-      // If movement is small, treat as click/tap
-      if (dx < 10 && dy < 10) {
-          handleSegmentClick(groupIndex, segmentIndex)
-      }
-      pointerStartRef.current = null
-  }
-
+  // Segment Handling
   const handleSegmentClick = (groupIndex: number, segmentIndex: number) => {
     hasInteractedRef.current = true
     setCurrentGroupIndex(groupIndex)
     setCurrentSegmentIndex(segmentIndex)
     shouldAutoPlayRef.current = true
-    // If we were paused, play
-    // If we were playing, this will switch source and play
   }
 
-  const cyclePlaybackSpeed = () => {
-    const currentIndex = PLAYBACK_SPEEDS.indexOf(playbackSpeed)
-    const nextIndex = (currentIndex + 1) % PLAYBACK_SPEEDS.length
-    setPlaybackSpeed(PLAYBACK_SPEEDS[nextIndex])
-  }
-
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return '0:00'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  // Handle bookmark click
+  // Bookmark Handling
   const handleBookmark = async (e: React.MouseEvent, segment: Segment) => {
     e.stopPropagation() // Don't trigger group click
 
@@ -522,15 +509,51 @@ export default function Player() {
 
       // Update local state
       setBookmarkedSegments(prev => new Set([...prev, segment.id]))
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
       if (import.meta.env.DEV) {
-        console.error('Bookmark failed:', err)
+        console.error('Bookmark failed:', message)
       }
-      setBookmarkError(err.message || 'Unknown error')
+      setBookmarkError(message)
       setTimeout(() => setBookmarkError(null), 4000)
     } finally {
       setBookmarkingSegment(null)
     }
+  }
+
+  // Sidebar Controls
+  const handleOpenToc = () => {
+    setSidePanelTab('toc')
+    setSidePanelOpen(true)
+  }
+
+  const handleOpenQa = () => {
+    setSidePanelTab('qa')
+    setSidePanelOpen(true)
+  }
+
+  const handleGroupSelect = (groupIndex: number) => {
+    setCurrentGroupIndex(groupIndex)
+    setCurrentSegmentIndex(0)
+    shouldAutoPlayRef.current = true
+    setSidePanelOpen(false)
+
+    // Scroll to group (optional, but good UX)
+    // The auto-scroll effect might handle segments, but group headers?
+    // Let's rely on standard scrolling to the group ID
+    const group = groups[groupIndex]
+    if (group) {
+      const el = document.getElementById(`group-${group.id}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+  }
+
+  const cyclePlaybackSpeed = () => {
+    const currentIndex = PLAYBACK_SPEEDS.indexOf(playbackSpeed)
+    const nextIndex = (currentIndex + 1) % PLAYBACK_SPEEDS.length
+    setPlaybackSpeed(PLAYBACK_SPEEDS[nextIndex])
   }
 
   if (loading) {
@@ -604,165 +627,50 @@ export default function Player() {
         onError={handleAudioError}
       />
 
-      {/* Audio controls */}
-      <div className="audio-controls">
-        <button
-          className="play-pause-btn"
-          onClick={handlePlayPause}
-          disabled={groups.length === 0}
-        >
-          {isPlaying ? '⏸' : '▶'}
-        </button>
+      <SegmentList
+        groups={groups}
+        currentGroupIndex={currentGroupIndex}
+        currentSegmentIndex={currentSegmentIndex}
+        bookmarkedSegments={bookmarkedSegments}
+        bookmarkingSegment={bookmarkingSegment}
+        onSegmentClick={handleSegmentClick}
+        onBookmark={handleBookmark}
+      />
 
-        <div className="progress-container" onClick={handleProgressClick}>
-          <div
-            className="progress-bar"
-            style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
-          />
-        </div>
+      <SidePanel
+        isOpen={sidePanelOpen}
+        activeTab={sidePanelTab}
+        onClose={() => setSidePanelOpen(false)}
+        onTabChange={setSidePanelTab}
+        groups={groups}
+        currentGroupIndex={currentGroupIndex}
+        onGroupSelect={handleGroupSelect}
+        messages={messages}
+        isRecording={isRecording}
+        isLoadingAnswer={isLoadingAnswer}
+        recorderError={recorderError}
+        isResumingNewsletter={isResumingNewsletter}
+        qaPlaybackFailed={qaPlaybackFailed}
+        onPlayQaManually={handlePlayQaManually}
+      />
 
-        <span className="time-display">
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </span>
+      <AudioBar
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        duration={duration}
+        playbackSpeed={playbackSpeed}
+        isRecording={isRecording}
+        onPlayPause={handlePlayPause}
+        onProgressClick={handleProgressClick}
+        onSpeedCycle={cyclePlaybackSpeed}
+        onMicClick={handleMicClick}
+        onOpenToc={handleOpenToc}
+        onOpenQa={handleOpenQa}
+        groupsLength={groups.length}
+        currentGroupIndex={currentGroupIndex}
+        disabled={groups.length === 0}
+      />
 
-        <button className="speed-btn" onClick={cyclePlaybackSpeed}>
-          {playbackSpeed}x
-        </button>
-
-        <button
-          className={`mic-btn ${isRecording ? 'listening' : ''}`}
-          onClick={handleMicClick}
-          title="Ask a question about this section"
-        >
-          {isRecording ? '🔴' : '🎤'}
-        </button>
-
-        <span className="segment-indicator">
-          {groups.length > 0 ? `${currentGroupIndex + 1}/${groups.length}` : '0/0'}
-        </span>
-      </div>
-
-      {/* QA Panel */}
-      {showQaPanel && (
-        <div className="qa-panel">
-          <div className="qa-header">
-            <h3>Q&A</h3>
-            <button className="close-qa" onClick={() => setShowQaPanel(false)}>×</button>
-          </div>
-          <div className="qa-messages">
-            {messages.length === 0 && !isRecording && (
-              <p className="qa-placeholder">Tap the mic to ask a question about this section.</p>
-            )}
-
-            {/* Fallback Play Button */}
-            {qaPlaybackFailed && (
-              <div className="qa-message assistant error-fallback">
-                <p>Auto-play blocked by browser. Tap to listen:</p>
-                <button className="qa-play-button" onClick={handlePlayQaManually}>
-                  ▶ Play Answer
-                </button>
-              </div>
-            )}
-
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`qa-message ${msg.role}`}>
-                <p>{msg.text}</p>
-              </div>
-            ))}
-            {isRecording && (
-              <div className="qa-message user listening">
-                <p>Recording...</p>
-              </div>
-            )}
-            {isLoadingAnswer && (
-              <div className="qa-message assistant loading">
-                <p>Thinking...</p>
-              </div>
-            )}
-            {recorderError && (
-              <div className="qa-message error">
-                <p>Error: {recorderError}</p>
-              </div>
-            )}
-            {isResumingNewsletter && (
-              <div className="qa-message resuming">
-                <p>Resuming newsletter...</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Topic Groups List */}
-      <div className="segments-list">
-        {groups.length === 0 ? (
-          <p className="no-segments">No audio segments available.</p>
-        ) : (
-          groups.map((group, groupIndex) => (
-            <div
-              key={group.id}
-              id={`group-${group.id}`}
-              className={`topic-group ${groupIndex === currentGroupIndex ? 'group-active' : ''}`}
-            >
-              <div className="group-content">
-                {group.label && <h3 className="group-title">{group.label}</h3>}
-
-                <div className="group-items">
-                  {group.segments.map((segment, segmentIndex) => {
-                      const isActive = groupIndex === currentGroupIndex && segmentIndex === currentSegmentIndex
-                      return (
-                        <div 
-                          key={segment.id} 
-                          id={`segment-${segment.id}`}
-                          className={`segment group-item ${isActive ? 'active' : ''}`}
-                          onPointerDown={handlePointerDown}
-                          onPointerUp={(e) => handlePointerUp(e, groupIndex, segmentIndex)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <p>{segment.content_raw}</p>
-
-                          {segment.links && segment.links.length > 0 && (
-                            <div className="segment-links">
-                              {segment.links.map((link, i) => (
-                                <a
-                                  key={i}
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onPointerDown={(e) => e.stopPropagation()} 
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {link.text || 'Link'}
-                                </a>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Bookmark button */}
-                          <button
-                            className={`bookmark-btn ${bookmarkedSegments.has(segment.id) ? 'bookmarked' : ''}`}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => handleBookmark(e, segment)}
-                            disabled={bookmarkingSegment === segment.id || bookmarkedSegments.has(segment.id)}
-                            title={bookmarkedSegments.has(segment.id) ? 'Bookmarked to ClickUp' : 'Bookmark to ClickUp'}
-                          >
-                            {bookmarkingSegment === segment.id ? (
-                              <span className="bookmark-loading">⏳</span>
-                            ) : bookmarkedSegments.has(segment.id) ? (
-                              <span className="bookmark-done">✓</span>
-                            ) : (
-                              <span className="bookmark-icon">📌</span>
-                            )}
-                          </button>
-                        </div>
-                      )
-                  })}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
     </div>
   )
 }

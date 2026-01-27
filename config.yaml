@@ -35,6 +35,8 @@ backend:
     httpTimeoutSeconds: 30.0
     # Batch size for inserting segments into database
     segmentBatchSize: 50
+    # RSS Feed URL for newsletter discovery
+    rssUrl: "https://news.smol.ai/rss.xml"
   
   ai:
     models:
@@ -72,7 +74,7 @@ prompts:
 
   qaWithAudio: |
     You are an AI assistant helping a user listen to a newsletter.
-    The user is listening to a section with the following content:
+    The user is listening to a newsletter with the following content:
 
     <content>
     {context}

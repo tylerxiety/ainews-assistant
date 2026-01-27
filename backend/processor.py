@@ -549,21 +549,19 @@ class NewsletterProcessor:
         return audio_url, duration_ms
 
     async def ask_with_audio(
-        self, audio_file, issue_id: str, group_id: str
+        self, audio_file, issue_id: str
     ) -> tuple[str, str, str]:
         """
-        Answer a question from audio input about a specific topic group.
-        Uses Gemini 2.0 Flash for audio transcription and Q&A.
+        Answer a question from audio input about the entire newsletter issue.
+        Uses faster model for audio transcription and Q&A.
 
         Args:
             audio_file: UploadFile from FastAPI
             issue_id: Issue UUID
-            group_id: Topic Group UUID
 
         Returns:
             tuple: (answer_text, audio_url, transcript)
         """
-        import os
 
         # 1. Upload audio to GCS temporarily
         audio_id = str(uuid.uuid4())
@@ -587,15 +585,15 @@ class NewsletterProcessor:
         logger.info(f"Uploaded audio to: {audio_uri}")
 
         try:
-            # 2. Fetch context (segments) for the group
+            # 2. Fetch context (segments) for the entire issue
             segments_resp = self.supabase.table("segments") \
                 .select("content_clean, content_raw") \
-                .eq("topic_group_id", group_id) \
+                .eq("issue_id", issue_id) \
                 .order("order_index") \
                 .execute()
-
+ 
             if not segments_resp.data:
-                return "I couldn't find the content for this section.", "", ""
+                return "I couldn't find the content for this newsletter.", "", ""
 
             # Combine text
             context_text = "\n".join([
@@ -712,7 +710,7 @@ class NewsletterProcessor:
         Returns:
             str: URL of the latest newsletter issue, or None if fetch fails
         """
-        rss_url = "https://news.smol.ai/rss.xml"
+        rss_url = Config._processing.get("rssUrl", "https://news.smol.ai/rss.xml")
         logger.info(f"Fetching RSS feed: {rss_url}")
         
         try:

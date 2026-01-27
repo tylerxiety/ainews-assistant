@@ -14,7 +14,7 @@
 .issue-list-header h1 {
   font-size: 1.75rem;
   margin: 0;
-  color: #f0f0f0;
+  color: var(--color-text-primary);
 }
 
 .issue-list-header .settings-link {
@@ -31,7 +31,7 @@
 .issue-list h1 {
   font-size: 1.75rem;
   margin-bottom: 24px;
-  color: #f0f0f0;
+  color: var(--color-text-primary);
 }
 
 .issue-list ul {
@@ -47,8 +47,8 @@
 .issue-item a {
   display: block;
   padding: 16px 20px;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   text-decoration: none;
   color: inherit;
@@ -56,22 +56,22 @@
 }
 
 .issue-item a:hover {
-  background: #252525;
-  border-color: #444;
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-input);
 }
 
 .issue-item h2 {
   font-size: 1.1rem;
   font-weight: 500;
   margin: 0 0 8px 0;
-  color: #f0f0f0;
+  color: var(--color-text-primary);
 }
 
 .issue-meta {
   display: flex;
   gap: 16px;
   font-size: 0.875rem;
-  color: #888;
+  color: var(--color-text-muted);
 }
 
 .status {
@@ -82,19 +82,19 @@
 }
 
 .status.processed {
-  background: #1a4d1a;
-  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--color-success);
 }
 
 .status.pending {
-  background: #4d4d1a;
-  color: #fde047;
+  background: rgba(250, 204, 21, 0.1);
+  color: var(--color-warning);
 }
 
 .empty {
   text-align: center;
   padding: 48px 20px;
-  color: #888;
+  color: var(--color-text-muted);
 }
 
 .empty .hint {
@@ -117,7 +117,7 @@
   height: 48px;
   border-radius: 50%;
   background: rgba(248, 113, 113, 0.1);
-  color: #f87171;
+  color: var(--color-error);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -126,14 +126,14 @@
 }
 
 .error-message {
-  color: #f0f0f0;
+  color: var(--color-text-primary);
   font-size: 1rem;
   font-weight: 500;
   margin: 0;
 }
 
 .error-detail {
-  color: #888;
+  color: var(--color-text-muted);
   font-size: 0.875rem;
   margin: 0;
 }
@@ -141,16 +141,16 @@
 .retry-btn {
   margin-top: 8px;
   padding: 8px 20px;
-  border: 1px solid #646cff;
+  border: 1px solid var(--color-accent);
   border-radius: 6px;
   background: transparent;
-  color: #646cff;
+  color: var(--color-accent);
   font-size: 0.875rem;
   cursor: pointer;
 }
 
 .retry-btn:hover {
-  background: rgba(100, 108, 255, 0.1);
+  background: var(--color-accent-muted);
 }
 
 /* Process Form */
@@ -167,22 +167,22 @@
 .url-input {
   flex: 1;
   padding: 12px 16px;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: #f0f0f0;
+  color: var(--color-text-primary);
   font-size: 1rem;
   transition: border-color 0.2s;
 }
 
 .url-input:focus {
   outline: none;
-  border-color: #646cff;
+  border-color: var(--color-accent);
 }
 
 .process-btn {
   padding: 12px 24px;
-  background: #646cff;
+  background: var(--color-accent);
   border: none;
   border-radius: 8px;
   color: white;
@@ -192,7 +192,7 @@
 }
 
 .process-btn:hover:not(:disabled) {
-  background: #535bf2;
+  background: var(--color-accent-hover);
 }
 
 .process-btn:disabled {
@@ -201,7 +201,7 @@
 }
 
 .process-error {
-  color: #f87171;
+  color: var(--color-error);
   font-size: 0.875rem;
   padding: 8px 12px;
   background: rgba(248, 113, 113, 0.1);
@@ -210,7 +210,7 @@
 }
 
 .process-success {
-  color: #4ade80;
+  color: var(--color-success);
   font-size: 0.875rem;
   padding: 8px 12px;
   background: rgba(74, 222, 128, 0.1);
@@ -249,7 +249,7 @@
   .process-form {
     flex-direction: column;
   }
-  
+
   .process-btn {
     width: 100%;
   }
