@@ -82,8 +82,8 @@
 }
 
 .status.processed {
-  background: rgba(74, 222, 128, 0.1);
-  color: var(--color-success);
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
 }
 
 .status.pending {
