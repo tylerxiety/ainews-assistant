@@ -10,12 +10,12 @@ export default defineConfig({
     yaml(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.svg', 'icon-512.svg'],
+      includeAssets: ['icon-192.svg', 'icon-512.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Newsletter Audio Player',
         short_name: 'AudioNews',
         description: 'Listen to your AI newsletters as audio',
-        theme_color: '#242424',
+        theme_color: '#f97316',
         background_color: '#242424',
         display: 'standalone',
         orientation: 'portrait',
@@ -23,15 +23,15 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: 'icon-192.svg',
+            src: 'icon-192.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any'
           },
           {
-            src: 'icon-512.svg',
+            src: 'icon-512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]
