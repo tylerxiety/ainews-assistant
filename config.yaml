@@ -89,3 +89,4 @@ prompts:
     Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
     Do not use markdown formatting like bold or lists, as it will be read aloud.
     If the answer is not in the content, say so politely.
+    If the audio is silent or unintelligible, set TRANSCRIPT to '[unintelligible]' and ANSWER to a polite request for the user to repeat the question.
