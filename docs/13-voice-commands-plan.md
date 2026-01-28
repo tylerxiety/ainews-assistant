@@ -19,12 +19,20 @@ Add a tap-to-enable voice mode to the PWA. While the newsletter plays, users can
 - **Keep existing Q&A flow as fallback**: If voice mode WebSocket fails, existing mic-button Q&A still works
 - **Vertex AI backend**: Use `google-genai` SDK configured for Vertex AI (ADC, project, location `us-central1`)
 
+## Context for Implementer
+
+- **Existing Q&A flow**: `frontend/src/components/Player.tsx` swaps the `<audio>` element to play Q&A audio and restores newsletter state. Voice mode must not break this fallback path.
+- **Mic recording hook**: `frontend/src/hooks/useAudioRecorder.ts` handles manual Q&A (MediaRecorder); voice mode should disable/replace mic button while active.
+- **Config source of truth**: All settings live in `config.yaml` (frontend consumes via `frontend/src/config.ts`, backend via `backend/config.py`).
+- **Backend deps**: Python deps are managed in `backend/pyproject.toml` with `uv` (no `requirements.txt` updates).
+- **iOS constraints**: AudioContext must be created on user tap; keep newsletter playback on `<audio>` element.
+
 ## Tasks
 
 - [ ] 🟥 **Step 1: Backend — Gemini Live WebSocket proxy**
   - [ ] 🟥 Add `google-genai` to `backend/pyproject.toml` dependencies (uv-managed)
   - [ ] 🟥 Create `backend/voice_session.py` — manages one Gemini Live session per WebSocket connection
-    - Connect to Gemini Live (model ID from config) via `google-genai` SDK configured for Vertex AI (`project`, `location`)
+    - Connect to Gemini Live (`gemini-live-2.5-flash-native-audio`) via `google-genai` SDK configured for Vertex AI (`project`, `location`)
     - Configure session: system prompt with newsletter context, response modalities `["AUDIO"]`
     - Define function tools: `play`, `pause`, `next_segment`, `previous_segment`, `bookmark`, `rewind(seconds=5)`, `forward(seconds=5)`
     - Forward incoming PCM audio chunks from client → Gemini Live session
@@ -86,7 +94,9 @@ Add a tap-to-enable voice mode to the PWA. While the newsletter plays, users can
 
 - [ ] 🟥 **Step 7: Config and integration**
   - [ ] 🟥 Add voice mode config to `config.yaml` and `frontend/src/config.ts`
-    - `voiceMode.model`, `voiceMode.region`, `voiceMode.sessionTimeoutMs`, `voiceMode.vadSensitivity`
+    - `voiceMode.model` = `gemini-live-2.5-flash-native-audio`
+    - `voiceMode.region` = `us-central1`
+    - `voiceMode.sessionTimeoutMs`, `voiceMode.vadSensitivity`
     - `voiceMode.resumeDelayMs` (delay before resuming newsletter after Q&A)
   - [ ] 🟥 Update Player.tsx to integrate `useVoiceMode` hook
     - Pass command handlers to the hook
@@ -120,4 +130,3 @@ Test on iOS Safari PWA + Chrome desktop using browswer agent. Backend WebSocket 
 - [ ] Existing non-voice Q&A flow (mic button → record → stop → answer) works when voice mode is off
 - [ ] No microphone access requested until user taps voice mode toggle
 - [ ] Works on iOS Safari PWA in foreground with screen on
-
