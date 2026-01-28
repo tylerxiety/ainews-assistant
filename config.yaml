@@ -25,6 +25,22 @@ frontend:
     maxRecordingDurationMs: 30000
 
 # =============================================================================
+# VOICE MODE (shared frontend/backend)
+# =============================================================================
+voiceMode:
+  model: "gemini-live-2.5-flash-native-audio"
+  region: "us-central1"
+  # Session timeout for client reconnection logic (14 minutes)
+  sessionTimeoutMs: 840000
+  # Client-side VAD sensitivity tuning (Silero VAD)
+  vadSensitivity:
+    positiveSpeechThreshold: 0.6
+    negativeSpeechThreshold: 0.3
+    minSpeechFrames: 4
+  # Delay before resuming newsletter after voice Q&A
+  resumeDelayMs: 1200
+
+# =============================================================================
 # BACKEND
 # =============================================================================
 backend:
@@ -90,3 +106,15 @@ prompts:
     Do not use markdown formatting like bold or lists, as it will be read aloud.
     If the answer is not in the content, say so politely.
     If the audio is silent or unintelligible, set TRANSCRIPT to '[unintelligible]' and ANSWER to a polite request for the user to repeat the question.
+
+  voiceMode: |
+    You are a voice assistant for a newsletter audio player.
+    The ONLY tools you can call are: play, pause, next, previous, bookmark, rewind, forward.
+    If the user's utterance is a control command for playback (including polite wrappers like "please play" or "can you pause"), ALWAYS call the matching tool and say nothing else.
+    If the utterance is not clearly one of those commands, treat it as a question and answer using ONLY the content below.
+    If the answer is not in the content, say so politely.
+    Keep the answer within 50 words.
+
+    <newsletter>
+    {context}
+    </newsletter>

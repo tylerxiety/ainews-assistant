@@ -2,13 +2,15 @@
 FastAPI application for newsletter processing service.
 Version: 1.0.1
 """
+import asyncio
+import json
 import logging
 import os
 import uuid
 from datetime import UTC, datetime
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +20,7 @@ from pydantic import BaseModel, HttpUrl
 load_dotenv()
 
 from processor import NewsletterProcessor
+from voice_session import VoiceSession
 
 app = FastAPI(title="Newsletter Audio Processor")
 
@@ -69,6 +72,56 @@ class ProcessRequest(BaseModel):
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "newsletter-audio-processor"}
+
+
+async def _fetch_issue_context(issue_id: str) -> str:
+    segments_resp = (
+        processor.supabase.table("segments")
+        .select("content_clean, content_raw")
+        .eq("issue_id", issue_id)
+        .order("order_index")
+        .execute()
+    )
+
+    if not segments_resp.data:
+        return ""
+
+    return "\n".join(
+        seg.get("content_clean") or seg.get("content_raw", "")
+        for seg in segments_resp.data
+    )
+
+
+@app.websocket("/ws/voice/{issue_id}")
+async def voice_mode_ws(websocket: WebSocket, issue_id: str):
+    await websocket.accept()
+
+    start_payload = None
+    try:
+        start_payload = await asyncio.wait_for(websocket.receive_text(), timeout=1.5)
+    except TimeoutError:
+        start_payload = None
+    except Exception:
+        return
+
+    context_text = await _fetch_issue_context(issue_id)
+    if not context_text:
+        await websocket.send_text(
+            json.dumps(
+                {"type": "error", "message": "Newsletter content not found for issue."}
+            )
+        )
+        await websocket.close()
+        return
+
+    voice_session = VoiceSession(issue_id, context_text)
+    if start_payload:
+        await voice_session._handle_client_text(start_payload, websocket)
+
+    await asyncio.gather(
+        voice_session.listen_to_client(websocket),
+        voice_session.run(websocket),
+    )
 
 
 @app.post("/ask-audio")

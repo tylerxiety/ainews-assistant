@@ -66,6 +66,18 @@ class Config:
     TTS_LANGUAGE_CODE: str = _tts.get("languageCode", "en-US")
     TTS_SPEAKING_RATE: float = _tts.get("speakingRate", 1.0)
 
+    # === VOICE MODE (from config.yaml) ===
+    _voice_mode = _raw_config.get("voiceMode", {})
+    _voice_vad = _voice_mode.get("vadSensitivity", {})
+
+    VOICE_MODE_MODEL: str = _voice_mode.get("model", "gemini-live-2.5-flash-native-audio")
+    VOICE_MODE_REGION: str = _voice_mode.get("region", "us-central1")
+    VOICE_MODE_SESSION_TIMEOUT_MS: int = _voice_mode.get("sessionTimeoutMs", 840000)
+    VOICE_MODE_VAD_POSITIVE: float = _voice_vad.get("positiveSpeechThreshold", 0.6)
+    VOICE_MODE_VAD_NEGATIVE: float = _voice_vad.get("negativeSpeechThreshold", 0.3)
+    VOICE_MODE_VAD_MIN_FRAMES: int = _voice_vad.get("minSpeechFrames", 4)
+    VOICE_MODE_RESUME_DELAY_MS: int = _voice_mode.get("resumeDelayMs", 1200)
+
 
 class Prompts:
     """Prompts loaded from config.yaml."""
@@ -74,3 +86,4 @@ class Prompts:
     
     TEXT_CLEANING: str = _prompts.get("textCleaning", "")
     QA_WITH_AUDIO: str = _prompts.get("qaWithAudio", "")
+    VOICE_MODE: str = _prompts.get("voiceMode", "")
