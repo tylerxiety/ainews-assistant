@@ -4,7 +4,7 @@
 
 ## TLDR
 
-Add a tap-to-enable voice mode to the PWA. While the newsletter plays, users can speak commands (play, pause, next, previous, bookmark, rewind, forward) or ask Q&A questions — all hands-free. Playback pauses on speech, resumes after handling. Uses Gemini Live API with function calling through a backend WebSocket proxy (iOS Safari compatibility). Client-side VAD for instant speech detection. AudioContext for mic capture (PCM) and streaming Q&A audio playback.
+Add a tap-to-enable voice mode to the PWA. While the newsletter plays, users can speak commands (play, pause, next, previous, bookmark, rewind, forward) or ask Q&A questions — all hands-free. Playback pauses on speech, resumes after handling. Uses Gemini Live API with function calling through a backend WebSocket proxy (iOS Safari compatibility). Client-side VAD for instant speech detection. AudioContext for mic capture (PCM) and streaming Q&A audio playback. Newsletter stays on `<audio>`; Q&A audio plays via AudioContext.
 
 ## Critical Decisions
 
@@ -12,27 +12,29 @@ Add a tap-to-enable voice mode to the PWA. While the newsletter plays, users can
 - **Client-side VAD (Silero via @ricky0123/vad-web)**: Pause newsletter instantly on speech start; Gemini Live has no `speech_started` event
 - **Function calling for commands**: Define play/pause/next/etc. as Gemini tools — no custom classifier needed. Anything not a command gets a Q&A audio response
 - **AudioContext for all voice I/O**: Mic capture as 16kHz PCM (Gemini input format), Q&A playback as 24kHz PCM (Gemini output format). `<audio>` element stays for newsletter MP3s only
+- **AUDIO-only responses + transcripts**: Session uses `response_modalities: ["AUDIO"]`. Use real-time audio transcripts from the API as the answer text in the Q&A panel; show question text as `[user question]`
 - **No wake word**: Tap-to-enable toggle is the activation gesture
 - **Silent visual feedback for commands**: No spoken confirmation — newsletter resumes immediately
-- **One Gemini Live session per issue**: Newsletter context in system prompt at session start. 15-min session limit, reconnect with resumption token if needed
+- **One Gemini Live session per issue**: Newsletter context in system prompt at session start. Handle connection reset (~10 min) and 15-min session limit with resumption tokens
 - **Keep existing Q&A flow as fallback**: If voice mode WebSocket fails, existing mic-button Q&A still works
+- **Vertex AI backend**: Use `google-genai` SDK configured for Vertex AI (ADC, project, location `us-central1`)
 
 ## Tasks
 
 - [ ] 🟥 **Step 1: Backend — Gemini Live WebSocket proxy**
-  - [ ] 🟥 Add `google-genai` and `websockets` to `requirements.txt`
+  - [ ] 🟥 Add `google-genai` to `backend/pyproject.toml` dependencies (uv-managed)
   - [ ] 🟥 Create `backend/voice_session.py` — manages one Gemini Live session per WebSocket connection
-    - Connect to Gemini Live (`gemini-2.5-flash-preview-native-audio-dialog`) via `google-genai` SDK
-    - Configure session: system prompt with newsletter context, response modalities `[AUDIO, TEXT]`
+    - Connect to Gemini Live (model ID from config) via `google-genai` SDK configured for Vertex AI (`project`, `location`)
+    - Configure session: system prompt with newsletter context, response modalities `["AUDIO"]`
     - Define function tools: `play`, `pause`, `next_segment`, `previous_segment`, `bookmark`, `rewind(seconds=5)`, `forward(seconds=5)`
     - Forward incoming PCM audio chunks from client → Gemini Live session
-    - Receive Gemini responses: forward tool calls as JSON, forward audio chunks as binary
-    - Handle session expiry/reconnection (resumption tokens)
+    - Receive Gemini responses: forward tool calls as JSON, forward audio chunks as binary, forward answer transcripts as JSON
+    - Handle connection reset (~10 min) + session expiry (~15 min) with resumption tokens
   - [ ] 🟥 Add WebSocket endpoint `ws /ws/voice/{issue_id}` in `main.py`
     - On connect: fetch newsletter context from Supabase, open Gemini Live session
     - Bidirectional relay: client audio → Gemini, Gemini responses → client
     - On disconnect: close Gemini Live session, cleanup
-  - [ ] 🟥 Add `voiceMode` config section to `config.yaml` (model name, session timeout, VAD sensitivity)
+  - [ ] 🟥 Add `voiceMode` config section to `config.yaml` (model name, region, session timeout, VAD sensitivity, resume delay)
 
 - [ ] 🟥 **Step 2: Frontend — AudioContext mic capture + PCM streaming**
   - [ ] 🟥 Create `frontend/src/hooks/useVoiceMode.ts` — core voice mode hook
@@ -78,12 +80,13 @@ Add a tap-to-enable voice mode to the PWA. While the newsletter plays, users can
     - Tap toggles voice mode on/off
   - [ ] 🟥 Update SidePanel Q&A tab to show voice mode state
     - Show real-time status: "Listening...", "Processing...", command executed feedback
-    - Q&A messages still appear in conversation history (from Gemini Live text responses)
+    - Q&A messages still appear in conversation history (from Gemini Live audio transcripts)
+    - Question text is shown as `[user question]` for voice mode
   - [ ] 🟥 Add voice mode active indicator in AudioBar (subtle persistent indicator when mode is on)
 
 - [ ] 🟥 **Step 7: Config and integration**
   - [ ] 🟥 Add voice mode config to `config.yaml` and `frontend/src/config.ts`
-    - `voiceMode.model`, `voiceMode.sessionTimeoutMs`, `voiceMode.vadSensitivity`
+    - `voiceMode.model`, `voiceMode.region`, `voiceMode.sessionTimeoutMs`, `voiceMode.vadSensitivity`
     - `voiceMode.resumeDelayMs` (delay before resuming newsletter after Q&A)
   - [ ] 🟥 Update Player.tsx to integrate `useVoiceMode` hook
     - Pass command handlers to the hook
@@ -118,5 +121,3 @@ Test on iOS Safari PWA + Chrome desktop using browswer agent. Backend WebSocket 
 - [ ] No microphone access requested until user taps voice mode toggle
 - [ ] Works on iOS Safari PWA in foreground with screen on
 
-## Output Location
-`docs/voice-commands-plan.md`
