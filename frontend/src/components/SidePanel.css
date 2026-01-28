@@ -145,6 +145,42 @@
     margin-top: 40px;
 }
 
+.voice-status-card {
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: rgba(249, 115, 22, 0.08);
+    color: var(--color-text-primary);
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.voice-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.voice-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3);
+}
+
+.voice-status-dot.on {
+    background: var(--color-accent);
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2);
+}
+
+.voice-status-command {
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+}
+
 .qa-message {
     padding: 10px 14px;
     border-radius: 12px;

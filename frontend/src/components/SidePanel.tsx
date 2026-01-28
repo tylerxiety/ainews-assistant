@@ -14,6 +14,11 @@ interface SidePanelProps {
     isRecording: boolean
     isLoadingAnswer: boolean
     recorderError: string | null
+    voiceModeActive: boolean
+    voiceListening: boolean
+    voiceSpeaking: boolean
+    voiceProcessing: boolean
+    lastVoiceCommand: string | null
     isResumingNewsletter: boolean
     qaPlaybackFailed: boolean
     onPlayQaManually: () => void
@@ -31,6 +36,11 @@ export default function SidePanel({
     isRecording,
     isLoadingAnswer,
     recorderError,
+    voiceModeActive,
+    voiceListening,
+    voiceSpeaking,
+    voiceProcessing,
+    lastVoiceCommand,
     isResumingNewsletter,
     qaPlaybackFailed,
     onPlayQaManually
@@ -79,7 +89,29 @@ export default function SidePanel({
 
                     {activeTab === 'qa' && (
                         <div className="qa-messages-container">
-                            {messages.length === 0 && !isRecording && (
+                            {voiceModeActive && (
+                                <div className="voice-status-card">
+                                    <div className="voice-status-row">
+                                        <span className={`voice-status-dot ${voiceListening ? 'on' : ''}`} />
+                                        <span className="voice-status-label">
+                                            {voiceSpeaking
+                                                ? 'Listening...'
+                                                : voiceProcessing
+                                                    ? 'Processing...'
+                                                    : voiceListening
+                                                        ? 'Voice mode ready'
+                                                        : 'Connecting...'}
+                                        </span>
+                                    </div>
+                                    {lastVoiceCommand && (
+                                        <div className="voice-status-command">
+                                            Last command: {lastVoiceCommand}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {messages.length === 0 && !isRecording && !voiceModeActive && (
                                 <p className="qa-placeholder">Tap the mic button in the audio bar to ask a question about this newsletter.</p>
                             )}
 

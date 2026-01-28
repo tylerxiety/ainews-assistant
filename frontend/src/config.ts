@@ -20,8 +20,21 @@ interface FrontendConfig {
     }
 }
 
+interface VoiceModeConfig {
+    model: string
+    region: string
+    sessionTimeoutMs: number
+    vadSensitivity: {
+        positiveSpeechThreshold: number
+        negativeSpeechThreshold: number
+        minSpeechFrames: number
+    }
+    resumeDelayMs: number
+}
+
 interface Config {
     frontend: FrontendConfig
+    voiceMode: VoiceModeConfig
 }
 
 const config = rawConfig as unknown as Config
@@ -37,5 +50,12 @@ export const CONFIG = {
         resumeDelayMs: config.frontend.qa.resumeDelayMs,
         /** Maximum duration for recording a question in ms */
         maxRecordingDurationMs: config.frontend.qa.maxRecordingDurationMs,
+    },
+    voiceMode: {
+        model: config.voiceMode.model,
+        region: config.voiceMode.region,
+        sessionTimeoutMs: config.voiceMode.sessionTimeoutMs,
+        vadSensitivity: config.voiceMode.vadSensitivity,
+        resumeDelayMs: config.voiceMode.resumeDelayMs,
     },
 }

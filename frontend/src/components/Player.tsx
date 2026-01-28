@@ -5,6 +5,7 @@ import { isClickUpConfigured, createClickUpTask } from '../lib/clickup'
 import { apiUrl } from '../lib/api'
 import { Issue, Segment, TopicGroup, ConversationMessage } from '../types'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
+import { useVoiceMode } from '../hooks/useVoiceMode'
 import { usePlaybackState } from '../hooks/usePlaybackState'
 import Loading from './Loading'
 import { CONFIG } from '../config'
@@ -35,6 +36,7 @@ export default function Player() {
   const [isPlayingQaAudio, setIsPlayingQaAudio] = useState(false)
   const [qaPlaybackFailed, setQaPlaybackFailed] = useState(false)
   const [isResumingNewsletter, setIsResumingNewsletter] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
 
   // Refs for Q&A
   const savedNewsletterPositionRef = useRef<number>(0)
@@ -44,6 +46,11 @@ export default function Player() {
   const isPlayingQaAudioRef = useRef(false)
   const isResumingNewsletterRef = useRef(false)
   const processedAudioRef = useRef<Blob | null>(null) // To prevent double submission
+  const wasPlayingBeforeVoiceRef = useRef(false)
+  const pendingVoiceQuestionRef = useRef(false)
+  const voiceQuestionIndexRef = useRef<number | null>(null)
+  const voiceAnswerIndexRef = useRef<number | null>(null)
+  const voiceAnswerTextRef = useRef('')
 
   // Bookmark state
   const [bookmarkedSegments, setBookmarkedSegments] = useState<Set<string>>(new Set())
@@ -60,9 +67,16 @@ export default function Player() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const currentGroupIndexRef = useRef(currentGroupIndex)
+  const currentSegmentIndexRef = useRef(currentSegmentIndex)
 
   // Playback State Persistence
   const { restoredState, clearState } = usePlaybackState(issueId, currentGroupIndex, currentSegmentIndex)
+
+  useEffect(() => {
+    currentGroupIndexRef.current = currentGroupIndex
+    currentSegmentIndexRef.current = currentSegmentIndex
+  }, [currentGroupIndex, currentSegmentIndex])
 
   // Handle audio recording completion
   useEffect(() => {
@@ -74,6 +88,10 @@ export default function Player() {
   }, [isRecording, audioBlob, recorderError])
 
   const handleMicClick = () => {
+    if (isVoiceModeActive) {
+      handleVoiceError('Turn off voice mode to use manual recording.')
+      return
+    }
     if (isRecording) {
       stopRecording()
     } else {
@@ -92,6 +110,200 @@ export default function Player() {
       setSidePanelTab('qa')
 
       startRecording()
+    }
+  }
+
+  const handleVoiceError = (message: string) => {
+    setVoiceError(message)
+    setTimeout(() => setVoiceError(null), 4000)
+  }
+
+  const mergeTranscriptText = (current: string, incoming: string) => {
+    const trimmed = incoming.trim()
+    if (!trimmed) return current
+    if (!current) return trimmed
+    if (trimmed.startsWith(current)) return trimmed
+    if (current.endsWith(trimmed)) return current
+
+    const maxOverlap = Math.min(current.length, trimmed.length)
+    for (let i = maxOverlap; i > 0; i -= 1) {
+      if (current.slice(-i) === trimmed.slice(0, i)) {
+        return `${current}${trimmed.slice(i)}`.trim()
+      }
+    }
+
+    return `${current} ${trimmed}`.trim()
+  }
+
+  const addVoiceQuestionMessage = () => {
+    setMessages(prev => {
+      voiceQuestionIndexRef.current = prev.length
+      return [
+        ...prev,
+        {
+          role: 'user',
+          text: '[user question]',
+          timestamp: Date.now(),
+        },
+      ]
+    })
+  }
+
+  const updateVoiceAnswerMessage = (text: string) => {
+    setMessages(prev => {
+      if (voiceAnswerIndexRef.current === null) {
+        voiceAnswerIndexRef.current = prev.length
+        return [
+          ...prev,
+          {
+            role: 'assistant',
+            text,
+            timestamp: Date.now(),
+          },
+        ]
+      }
+
+      return prev.map((msg, idx) =>
+        idx === voiceAnswerIndexRef.current ? { ...msg, text } : msg
+      )
+    })
+  }
+
+  const pauseNewsletterForVoice = (captureWasPlaying = false) => {
+    const audio = audioRef.current
+    if (!audio) {
+      if (captureWasPlaying) {
+        wasPlayingBeforeVoiceRef.current = false
+      }
+      return
+    }
+
+    if (captureWasPlaying) {
+      wasPlayingBeforeVoiceRef.current = !audio.paused
+    }
+
+    if (!audio.paused) {
+      shouldAutoPlayRef.current = false
+      audio.pause()
+      setIsPlaying(false)
+      return
+    }
+  }
+
+  const resumeNewsletterAfterVoice = (delayMs = 0) => {
+    if (wasPlayingBeforeVoiceRef.current) {
+      window.setTimeout(() => {
+        handlePlay()
+      }, delayMs)
+    }
+  }
+
+  const goToNextSegment = (autoPlay: boolean) => {
+    const groupIndex = currentGroupIndexRef.current
+    const segmentIndex = currentSegmentIndexRef.current
+    const currentGroup = groups[groupIndex]
+    if (!currentGroup) return
+
+    hasInteractedRef.current = true
+
+    if (segmentIndex < currentGroup.segments.length - 1) {
+      const nextSegmentIndex = segmentIndex + 1
+      currentSegmentIndexRef.current = nextSegmentIndex
+      setCurrentSegmentIndex(nextSegmentIndex)
+      shouldAutoPlayRef.current = autoPlay
+      return
+    }
+
+    if (groupIndex < groups.length - 1) {
+      const nextGroupIndex = groupIndex + 1
+      currentGroupIndexRef.current = nextGroupIndex
+      currentSegmentIndexRef.current = 0
+      setCurrentGroupIndex(nextGroupIndex)
+      setCurrentSegmentIndex(0)
+      shouldAutoPlayRef.current = autoPlay
+    }
+  }
+
+  const goToPreviousSegment = (autoPlay: boolean) => {
+    const groupIndex = currentGroupIndexRef.current
+    const segmentIndex = currentSegmentIndexRef.current
+    const currentGroup = groups[groupIndex]
+    if (!currentGroup) return
+
+    hasInteractedRef.current = true
+
+    if (segmentIndex > 0) {
+      const prevSegmentIndex = segmentIndex - 1
+      currentSegmentIndexRef.current = prevSegmentIndex
+      setCurrentSegmentIndex(prevSegmentIndex)
+      shouldAutoPlayRef.current = autoPlay
+      return
+    }
+
+    if (groupIndex > 0) {
+      const prevGroupIndex = groupIndex - 1
+      const prevGroup = groups[prevGroupIndex]
+      const prevSegmentIndex = Math.max(0, prevGroup.segments.length - 1)
+      currentGroupIndexRef.current = prevGroupIndex
+      currentSegmentIndexRef.current = prevSegmentIndex
+      setCurrentGroupIndex(prevGroupIndex)
+      setCurrentSegmentIndex(prevSegmentIndex)
+      shouldAutoPlayRef.current = autoPlay
+    }
+  }
+
+  const handleVoiceCommand = (command: { name: string; args: Record<string, unknown> }) => {
+    pendingVoiceQuestionRef.current = false
+    voiceQuestionIndexRef.current = null
+    voiceAnswerIndexRef.current = null
+    voiceAnswerTextRef.current = ''
+
+    switch (command.name) {
+      case 'play':
+        handlePlay()
+        break
+      case 'pause':
+        handlePause()
+        break
+      case 'next':
+      case 'next_segment':
+        goToNextSegment(wasPlayingBeforeVoiceRef.current)
+        break
+      case 'previous':
+      case 'previous_segment':
+        goToPreviousSegment(wasPlayingBeforeVoiceRef.current)
+        break
+      case 'bookmark': {
+        const currentGroup = groups[currentGroupIndex]
+        const segment = currentGroup?.segments[currentSegmentIndex]
+        if (segment) {
+          performBookmark(segment)
+        }
+        resumeNewsletterAfterVoice()
+        break
+      }
+      case 'rewind': {
+        const seconds = Number(command.args.seconds ?? 5)
+        if (audioRef.current) {
+          audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - seconds)
+        }
+        resumeNewsletterAfterVoice()
+        break
+      }
+      case 'forward': {
+        const seconds = Number(command.args.seconds ?? 5)
+        if (audioRef.current) {
+          audioRef.current.currentTime = Math.min(
+            audioRef.current.duration || Infinity,
+            audioRef.current.currentTime + seconds
+          )
+        }
+        resumeNewsletterAfterVoice()
+        break
+      }
+      default:
+        resumeNewsletterAfterVoice()
+        break
     }
   }
 
@@ -216,6 +428,68 @@ export default function Player() {
       })
     }
   }
+
+  const handleVoiceSpeechStart = () => {
+    pauseNewsletterForVoice(true)
+    pendingVoiceQuestionRef.current = true
+    voiceQuestionIndexRef.current = null
+    voiceAnswerIndexRef.current = null
+    voiceAnswerTextRef.current = ''
+  }
+
+  const handleVoiceSpeechEnd = () => {
+    // Voice mode handles processing state internally
+  }
+
+  const handleVoiceTranscript = (text: string) => {
+    pauseNewsletterForVoice()
+    if (
+      pendingVoiceQuestionRef.current ||
+      (voiceQuestionIndexRef.current === null && voiceAnswerIndexRef.current === null)
+    ) {
+      addVoiceQuestionMessage()
+      pendingVoiceQuestionRef.current = false
+    }
+    const mergedText = mergeTranscriptText(voiceAnswerTextRef.current, text)
+    voiceAnswerTextRef.current = mergedText
+    updateVoiceAnswerMessage(mergedText)
+  }
+
+  const handleVoiceAnswerStart = () => {
+    pauseNewsletterForVoice()
+  }
+
+  const handleVoiceAnswerEnd = () => {
+    resumeNewsletterAfterVoice(CONFIG.voiceMode.resumeDelayMs)
+    pendingVoiceQuestionRef.current = false
+    voiceQuestionIndexRef.current = null
+    voiceAnswerIndexRef.current = null
+    voiceAnswerTextRef.current = ''
+  }
+
+  const {
+    isVoiceModeActive,
+    isListening: isVoiceListening,
+    isSpeaking: isVoiceSpeaking,
+    isProcessing: isVoiceProcessing,
+    lastCommand: lastVoiceCommand,
+    toggleVoiceMode,
+  } = useVoiceMode({
+    issueId,
+    onCommand: handleVoiceCommand,
+    onSpeechStart: handleVoiceSpeechStart,
+    onSpeechEnd: handleVoiceSpeechEnd,
+    onTranscript: handleVoiceTranscript,
+    onAnswerStart: handleVoiceAnswerStart,
+    onAnswerEnd: handleVoiceAnswerEnd,
+    onError: handleVoiceError,
+  })
+
+  useEffect(() => {
+    if (isVoiceModeActive && isRecording) {
+      stopRecording()
+    }
+  }, [isVoiceModeActive, isRecording, stopRecording])
 
   // Load issue, groups, and bookmarks
   useEffect(() => {
@@ -480,9 +754,7 @@ export default function Player() {
   }
 
   // Bookmark Handling
-  const handleBookmark = async (e: React.MouseEvent, segment: Segment) => {
-    e.stopPropagation() // Don't trigger group click
-
+  const performBookmark = async (segment: Segment) => {
     if (!issueId || !issue) return
 
     // Check if already bookmarked
@@ -519,6 +791,11 @@ export default function Player() {
     } finally {
       setBookmarkingSegment(null)
     }
+  }
+
+  const handleBookmark = async (e: React.MouseEvent, segment: Segment) => {
+    e.stopPropagation() // Don't trigger group click
+    await performBookmark(segment)
   }
 
   // Sidebar Controls
@@ -616,6 +893,13 @@ export default function Player() {
         </div>
       )}
 
+      {voiceError && (
+        <div className="voice-error-toast">
+          <span className="toast-icon">🎙️</span>
+          <span>{voiceError}</span>
+        </div>
+      )}
+
       {/* Audio element (hidden) */}
       <audio
         ref={audioRef}
@@ -649,6 +933,11 @@ export default function Player() {
         isRecording={isRecording}
         isLoadingAnswer={isLoadingAnswer}
         recorderError={recorderError}
+        voiceModeActive={isVoiceModeActive}
+        voiceListening={isVoiceListening}
+        voiceSpeaking={isVoiceSpeaking}
+        voiceProcessing={isVoiceProcessing}
+        lastVoiceCommand={lastVoiceCommand}
         isResumingNewsletter={isResumingNewsletter}
         qaPlaybackFailed={qaPlaybackFailed}
         onPlayQaManually={handlePlayQaManually}
@@ -660,10 +949,15 @@ export default function Player() {
         duration={duration}
         playbackSpeed={playbackSpeed}
         isRecording={isRecording}
+        isVoiceModeActive={isVoiceModeActive}
+        isVoiceListening={isVoiceListening}
+        isVoiceSpeaking={isVoiceSpeaking}
+        lastVoiceCommand={lastVoiceCommand}
         onPlayPause={handlePlayPause}
         onProgressClick={handleProgressClick}
         onSpeedCycle={cyclePlaybackSpeed}
         onMicClick={handleMicClick}
+        onVoiceToggle={toggleVoiceMode}
         onOpenToc={handleOpenToc}
         onOpenQa={handleOpenQa}
         groupsLength={groups.length}

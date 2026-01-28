@@ -75,6 +75,25 @@
   max-width: calc(100% - 40px);
 }
 
+.voice-error-toast {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(249, 115, 22, 0.95);
+  color: white;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+  animation: slideDown 0.3s ease;
+  max-width: calc(100% - 40px);
+}
+
 .toast-icon {
   font-size: 1rem;
 }

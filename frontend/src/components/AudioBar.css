@@ -86,6 +86,64 @@
     text-align: center;
 }
 
+.voice-toggle-btn {
+    color: var(--color-text-primary);
+    position: relative;
+    gap: 6px;
+}
+
+.voice-toggle-btn.active {
+    color: var(--color-accent);
+    background: rgba(249, 115, 22, 0.12);
+}
+
+.voice-toggle-btn.speaking {
+    animation: pulse-orange 1.4s infinite;
+}
+
+.voice-pill {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(249, 115, 22, 0.2);
+    color: var(--color-text-primary);
+    letter-spacing: 0.02em;
+}
+
+.voice-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--color-text-secondary);
+    min-width: 0;
+}
+
+.voice-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
+}
+
+.voice-dot.on {
+    background: var(--color-accent);
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2);
+}
+
+.voice-status-text {
+    white-space: nowrap;
+}
+
+.voice-last-command {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 120px;
+}
+
 /* Mic Button Special Styling */
 .mic-btn {
     color: var(--color-text-primary);
@@ -141,6 +199,20 @@
     }
 }
 
+@keyframes pulse-orange {
+    0% {
+        box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(249, 115, 22, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+    }
+}
+
 /* Mobile responsive styles */
 @media (max-width: 600px) {
     .controls-row-main {
@@ -159,5 +231,9 @@
 
     .control-btn {
         padding: 6px;
+    }
+
+    .voice-last-command {
+        display: none;
     }
 }

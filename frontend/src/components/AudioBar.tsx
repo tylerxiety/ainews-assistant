@@ -1,4 +1,4 @@
-import { Play, Pause, Mic, MessageSquareText, List } from 'lucide-react'
+import { Play, Pause, Mic, MessageSquareText, List, AudioWaveform } from 'lucide-react'
 import './AudioBar.css'
 
 interface AudioBarProps {
@@ -7,10 +7,15 @@ interface AudioBarProps {
     duration: number
     playbackSpeed: number
     isRecording: boolean
+    isVoiceModeActive: boolean
+    isVoiceListening: boolean
+    isVoiceSpeaking: boolean
+    lastVoiceCommand: string | null
     onPlayPause: () => void
     onProgressClick: (e: React.MouseEvent<HTMLDivElement>) => void
     onSpeedCycle: () => void
     onMicClick: () => void
+    onVoiceToggle: () => void
     onOpenToc: () => void
     onOpenQa: () => void
     groupsLength: number
@@ -24,10 +29,15 @@ export default function AudioBar({
     duration,
     playbackSpeed,
     isRecording,
+    isVoiceModeActive,
+    isVoiceListening,
+    isVoiceSpeaking,
+    lastVoiceCommand,
     onPlayPause,
     onProgressClick,
     onSpeedCycle,
     onMicClick,
+    onVoiceToggle,
     onOpenToc,
     onOpenQa,
     disabled
@@ -64,12 +74,37 @@ export default function AudioBar({
                 </button>
 
                 <button
+                    className={`control-btn voice-toggle-btn ${isVoiceModeActive ? 'active' : ''} ${isVoiceSpeaking ? 'speaking' : ''}`}
+                    onClick={onVoiceToggle}
+                    title={isVoiceModeActive ? 'Disable Voice Mode' : 'Enable Voice Mode'}
+                >
+                    <AudioWaveform size={20} />
+                    {isVoiceModeActive && <span className="voice-pill">Voice</span>}
+                </button>
+
+                <button
                     className={`control-btn mic-btn ${isRecording ? 'listening' : ''}`}
                     onClick={onMicClick}
                     title="Ask a question"
                 >
                     <Mic size={20} />
                 </button>
+
+                {isVoiceModeActive && (
+                    <div className="voice-status">
+                        <span className={`voice-dot ${isVoiceListening ? 'on' : ''}`} />
+                        <span className="voice-status-text">
+                            {isVoiceSpeaking
+                                ? 'Listening'
+                                : isVoiceListening
+                                    ? 'Voice On'
+                                    : 'Connecting'}
+                        </span>
+                        {lastVoiceCommand && (
+                            <span className="voice-last-command">Last: {lastVoiceCommand}</span>
+                        )}
+                    </div>
+                )}
 
                 <button
                     className="control-btn qa-btn"
