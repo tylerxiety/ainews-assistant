@@ -1,96 +1,62 @@
 # Project Instructions
 
 ## Overview
-AI News Assistant - PWA that converts AINews newsletter into listenable audio with visual sync, voice Q&A, and tap-to-bookmark to ClickUp. Newsletters are auto-processed every 6 hours via Cloud Scheduler.
+AI News Assistant - PWA that converts AINews newsletter into listenable audio with visual sync, voice commands/Q&A, and tap-to-bookmark to ClickUp. Auto-processed every 6 hours via Cloud Scheduler.
 
 ## Tech Stack
-- **Frontend**: Vite + React 19 + TypeScript + plain CSS (PWA on Vercel)
-- **Icons**: lucide-react
+- **Frontend**: Vite + React 19 + TypeScript + plain CSS (PWA on Vercel), lucide-react icons
 - **Backend**: Python + FastAPI (Cloud Run)
-- **Database**: Supabase (Postgres)
-- **Storage**: Google Cloud Storage (audio files)
+- **Database**: Supabase (Postgres) | **Storage**: GCS (audio files)
 - **TTS**: Google Cloud TTS (Chirp 3 HD Aoede)
-- **AI**: Gemini models (text cleaning + Q&A transcription)
-- **Task Integration**: ClickUp API
+- **AI**: Gemini models (text cleaning, Q&A, voice mode)
+- **Voice Mode**: Gemini Live API via backend WebSocket proxy, client-side VAD (@ricky0123/vad-web)
 - **Config**: Centralized `config.yaml` (shared by frontend/backend)
 
 ## Key Decisions
-- **Voice Q&A uses MediaRecorder + server-side Gemini** (not Web Speech API, due to poor performance)
-- **Whole-newsletter Q&A scope** — Q&A queries allow context from the entire newsletter (by `issue_id`), not restricted to the current topic group.
-- **Per-segment audio playback** — One TTS call per segment; topic groups are for UI/ordering only
-- **Single audio element for newsletter + Q&A** — Reuses unlocked audio element to bypass iOS autoplay restrictions
-- **UI Architecture** — `Player.tsx` orchestrates state; visualization split into `SegmentList` (content), `AudioBar` (controls), and `SidePanel` (TOC + Q&A).
+- **Voice mode**: Tap-to-enable hands-free commands (play/pause/next/previous/bookmark/rewind/forward) and Q&A via Gemini Live. Backend WebSocket proxy for iOS Safari compatibility. Client-side VAD pauses newsletter instantly on speech.
+- **Fallback Q&A**: MediaRecorder + server-side Gemini when voice mode is off
+- **Per-segment audio**: One TTS call per segment; topic groups are for UI/ordering only
+- **Single `<audio>` element**: Newsletter playback only; Q&A audio plays via AudioContext
+- **UI Architecture**: `Player.tsx` orchestrates state; `SegmentList` (content), `AudioBar` (controls), `SidePanel` (TOC + Q&A)
 
 ## Conventions
 
 ### Backend
-- **Package manager**: `uv`
-- **Running commands**: Always use `uv run` from the backend directory:
-  ```bash
-  cd backend && uv run <command>
-  ```
-  Example: `cd backend && uv run python main.py`
+- **Package manager**: `uv` — always run `cd backend && uv run <command>`
+- Use `logging` module (not `print`), type hints for function signatures
 
-### Python
-- Use `logging` module, not `print`
-- Type hints for function signatures
-
-### React/TypeScript
-- Functional components with hooks
-- Strict typing (no `any`)
-- Proper useEffect cleanup
-
-### CSS & UI
-- Two-Color Palette (Black + Orange)
-- Icons: Use `lucide-react` components. 
+### Frontend
+- Functional components with hooks, strict typing (no `any`), proper useEffect cleanup
+- Two-color palette (black + orange), lucide-react icons
 
 ### General
 - Keep solutions simple — don't over-engineer
 - No debug code or TODOs in commits
-- **All config changes go in `/config.yaml`** — frontend imports via rollup-plugin-yaml, backend loads with PyYAML
+- **All config in `/config.yaml`** — frontend imports via rollup-plugin-yaml, backend via PyYAML
 
-### Testing & Debugging
-- Do NOT create standalone test scripts for commits. Keep temporary debugging scripts in `tests/tmp/`, but must delete them before final changes.
-- For debugging: add temporary logging, then remove it — don't create new files
-- To verify functionality works: use existing API endpoints, REPL, or `curl`
-- If a proper test suite is needed, discuss with user first before setting up pytest/testing infrastructure
-- You MUST test against the ngrok URL (https://vicarly-subtransparent-reese.ngrok-free.dev/), NOT the dev server:
+### Testing
+- Test against ngrok URL, NOT dev server:
   ```bash
   cd frontend && VITE_API_URL="" npm run build
   cd backend && uv run uvicorn main:app --host 0.0.0.0 --port 8080
   ngrok http 8080
   ```
-  - When code changes: frontend changes → rerun the build step; backend changes → restart uvicorn; ngrok only if the tunnel died or the port changed.
+- No standalone test scripts in commits; temp scripts in `tests/tmp/` (delete before commit)
 
 ### Documentation
-- Agent-created dev docs (plans, specs) go in `docs/` with **numbered prefix** and **lowercase** names (e.g., `13-auth-plan.md`) to maintain chronological order
-- UPPERCASE names (e.g., `00-PROJECT-BRIEF.md`) are reserved for user-created docs
+- Agent docs in `docs/` with numbered prefix, lowercase (e.g., `13-auth-plan.md`)
+- UPPERCASE names reserved for user-created docs
 
-### Credentials & Infrastructure
-- **GCP**: Uses Application Default Credentials (ADC) — no explicit keys needed
-- **CLIs available**: `gcloud`, `supabase`, `vercel`, `gh` (GitHub)
-- **Use CLIs** for infra tasks (deployments, migrations, config) instead of asking user to do it manually
-- **Always ask permission** before running commands that create, modify, or delete resources
-- Read-only commands (status, list, logs) are fine without asking
+### Infrastructure
+- GCP uses ADC — no explicit keys needed
+- CLIs available: `gcloud`, `supabase`, `vercel`, `gh`
+- Ask permission before create/modify/delete commands; read-only commands are fine
 
 ## Multi-Agent Environment
-
-This project uses multiple AI coding agents (Claude Code, Antigravity, etc.). To avoid conflicts:
-- Check git status before starting work
-- Pull latest changes frequently
-- Keep changes focused and atomic
-- Coordinate on shared files when possible
+Multiple AI agents work on this project. Check git status before starting, pull frequently, keep changes atomic.
 
 ## Collaboration
-
-- Ask before implementing if requirements are unclear
-- Propose approach before big changes
-- Flag risks and tradeoffs explicitly
-- Don't assume requirements — ask clarifying questions
+Ask before implementing unclear requirements. Propose approach before big changes. Flag risks explicitly.
 
 ## Maintaining This Document
-
-When you make changes that affect how to work in this codebase, update this file (`AGENTS.md`):
-- New tool/framework added → Update Tech Stack
-- New convention established → Add to Conventions
-- Infrastructure change → Update relevant section
+Update when: new tool added → Tech Stack; new convention → Conventions; infra change → relevant section.

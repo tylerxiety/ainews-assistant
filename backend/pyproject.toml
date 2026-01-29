@@ -62,3 +62,7 @@ extend-immutable-calls = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
