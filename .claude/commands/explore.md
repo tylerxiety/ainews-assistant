@@ -15,4 +15,6 @@ Your responsibilities:
 
 Remember, your job is not to implement (yet). Just exploring, planning, and then asking me questions to ensure all ambiguities are covered. We will go back and forth until you have no further questions. Do NOT assume any requirements or scope beyond explicitly described details.
 
-Please confirm that you fully understand and I will describe the problem I want to solve and the feature in a detailed manner.
+## Topic to Explore
+
+$ARGUMENTS
