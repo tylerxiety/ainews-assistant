@@ -22,8 +22,9 @@ export default function IssueList() {
     try {
       const data = await fetchIssues()
       setIssues(data)
-    } catch (err: any) {
-      setError(err.message || 'Unknown error')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
     } finally {
       setLoading(false)
     }

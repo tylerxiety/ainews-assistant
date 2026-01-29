@@ -33,6 +33,7 @@ interface VoiceModeState {
 }
 
 const OUTPUT_SAMPLE_RATE = 24000
+const MAX_WS_BUFFER_SIZE = 256 * 1024 // 256KB - prevent backpressure buildup
 
 function buildWsUrl(path: string) {
   if (API_URL) {
@@ -297,7 +298,7 @@ export function useVoiceMode(options: UseVoiceModeOptions): VoiceModeState {
       workletNode.port.onmessage = (event) => {
         const ws = wsRef.current
         if (ws && ws.readyState === WebSocket.OPEN) {
-          if (ws.bufferedAmount > 256 * 1024) {
+          if (ws.bufferedAmount > MAX_WS_BUFFER_SIZE) {
             return
           }
           ws.send(event.data)

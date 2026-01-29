@@ -75,8 +75,8 @@ async def health_check():
 
 
 async def _fetch_issue_context(issue_id: str) -> str:
-    segments_resp = (
-        processor.supabase.table("segments")
+    segments_resp = await asyncio.to_thread(
+        lambda: processor.supabase.table("segments")
         .select("content_clean, content_raw")
         .eq("issue_id", issue_id)
         .order("order_index")
@@ -94,6 +94,13 @@ async def _fetch_issue_context(issue_id: str) -> str:
 
 @app.websocket("/ws/voice/{issue_id}")
 async def voice_mode_ws(websocket: WebSocket, issue_id: str):
+    # Validate UUID format before proceeding
+    try:
+        uuid.UUID(issue_id)
+    except ValueError:
+        await websocket.close(code=1008, reason="Invalid issue_id format")
+        return
+
     await websocket.accept()
 
     start_payload = None

@@ -85,6 +85,7 @@ export default function Player() {
       handleAskQuestionWithAudio(audioBlob)
       processedAudioRef.current = audioBlob
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleAskQuestionWithAudio intentionally omitted; processedAudioRef prevents double-fire
   }, [isRecording, audioBlob, recorderError])
 
   const handleMicClick = () => {
@@ -424,7 +425,9 @@ export default function Player() {
       audioRef.current.play().then(() => {
         setQaPlaybackFailed(false)
       }).catch(e => {
-        console.error("Manual QA Playback failed:", e)
+        if (import.meta.env.DEV) {
+          console.error("Manual QA Playback failed:", e)
+        }
       })
     }
   }

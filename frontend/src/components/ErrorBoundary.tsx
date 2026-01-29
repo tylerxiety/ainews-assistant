@@ -54,7 +54,7 @@ class ErrorBoundary extends React.Component<Props, State> {
                             onClick={() => window.location.reload()}
                             style={{
                                 padding: '0.8rem 1.5rem',
-                                backgroundColor: '#646cff',
+                                backgroundColor: '#f97316',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '8px',
@@ -65,7 +65,7 @@ class ErrorBoundary extends React.Component<Props, State> {
                         >
                             Reload Page
                         </button>
-                        <a href="/" style={{ color: '#646cff', textDecoration: 'none' }}>Go Home</a>
+                        <a href="/" style={{ color: '#f97316', textDecoration: 'none' }}>Go Home</a>
                     </div>
                 </div>
             );

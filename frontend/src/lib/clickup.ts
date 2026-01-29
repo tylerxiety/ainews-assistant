@@ -47,7 +47,13 @@ export function isClickUpConfigured(): boolean {
 /**
  * Create a task in ClickUp from a newsletter segment
  */
-export async function createClickUpTask(segment: Segment, issueTitle: string): Promise<any> {
+interface ClickUpTaskResponse {
+    id: string
+    name: string
+    url: string
+}
+
+export async function createClickUpTask(segment: Segment, issueTitle: string): Promise<ClickUpTaskResponse> {
     const settings = getClickUpSettings()
 
     if (!settings) {
