@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import * as ort from 'onnxruntime-web'
+
+// Configure WASM paths before importing MicVAD (v0.0.16 doesn't have ortConfig)
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/'
+ort.env.wasm.numThreads = 1
+
 import { MicVAD } from '@ricky0123/vad-web'
 import { API_URL } from '../lib/api'
 import { CONFIG } from '../config'
@@ -312,10 +318,6 @@ export function useVoiceMode(options: UseVoiceModeOptions): VoiceModeState {
         stream,
         workletURL: vadWorkletUrl,
         modelURL: vadModelUrl,
-        ortConfig: (ort) => {
-          ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/'
-          ort.env.wasm.numThreads = 1
-        },
         onSpeechStart: () => {
           setIsSpeaking(true)
           setIsProcessing(false)
