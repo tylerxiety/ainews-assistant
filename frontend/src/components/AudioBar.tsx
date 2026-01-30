@@ -54,73 +54,76 @@ export default function AudioBar({
         <div className="audio-controls">
             {/* Row 1: Controls */}
             <div className="controls-row-main">
-                <button
-                    className="play-pause-btn"
-                    onClick={onPlayPause}
-                    disabled={disabled}
-                    title={isPlaying ? "Pause" : "Play"}
-                >
-                    {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                </button>
+                <div className="controls-left">
+                    <button
+                        className="play-pause-btn"
+                        onClick={onPlayPause}
+                        disabled={disabled}
+                        title={isPlaying ? "Pause" : "Play"}
+                    >
+                        {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                    </button>
 
-                <div className="time-display">
-                    {formatTime(currentTime)} / {formatTime(duration)}
+                    <div className="time-display">
+                        {formatTime(currentTime)} / {formatTime(duration)}
+                    </div>
+
+                    <button className="control-btn speed-btn" onClick={onSpeedCycle} title="Playback Speed">
+                        <span className="speed-text">{playbackSpeed}x</span>
+                    </button>
                 </div>
 
-                <div className="spacer" />
+                <div className="controls-center">
+                    <button
+                        className={`control-btn voice-toggle-btn ${isVoiceModeActive ? 'active' : ''} ${isVoiceSpeaking ? 'speaking' : ''}`}
+                        onClick={onVoiceToggle}
+                        title={isVoiceModeActive ? 'Disable Voice Mode' : 'Enable Voice Mode'}
+                    >
+                        <AudioWaveform size={20} />
+                    </button>
 
-                <button className="control-btn speed-btn" onClick={onSpeedCycle} title="Playback Speed">
-                    <span className="speed-text">{playbackSpeed}x</span>
-                </button>
+                    {isVoiceModeActive && (
+                        <div className="voice-status">
+                            <span className={`voice-dot ${isVoiceListening ? 'on' : ''}`} />
+                            <span className="voice-status-text">
+                                {isVoiceSpeaking
+                                    ? 'Listening'
+                                    : isVoiceListening
+                                        ? 'Voice On'
+                                        : 'Connecting'}
+                            </span>
+                            {lastVoiceCommand && (
+                                <span className="voice-last-command">Last: {lastVoiceCommand}</span>
+                            )}
+                        </div>
+                    )}
+                </div>
 
-                <button
-                    className={`control-btn voice-toggle-btn ${isVoiceModeActive ? 'active' : ''} ${isVoiceSpeaking ? 'speaking' : ''}`}
-                    onClick={onVoiceToggle}
-                    title={isVoiceModeActive ? 'Disable Voice Mode' : 'Enable Voice Mode'}
-                >
-                    <AudioWaveform size={20} />
-                    {isVoiceModeActive && <span className="voice-pill">Voice</span>}
-                </button>
+                <div className="controls-right">
+                    <button
+                        className={`control-btn mic-btn ${isRecording ? 'listening' : ''}`}
+                        onClick={onMicClick}
+                        title="Ask a question"
+                    >
+                        <Mic size={20} />
+                    </button>
 
-                <button
-                    className={`control-btn mic-btn ${isRecording ? 'listening' : ''}`}
-                    onClick={onMicClick}
-                    title="Ask a question"
-                >
-                    <Mic size={20} />
-                </button>
+                    <button
+                        className="control-btn qa-btn"
+                        onClick={onOpenQa}
+                        title="Open Q&A"
+                    >
+                        <MessageSquareText size={20} />
+                    </button>
 
-                {isVoiceModeActive && (
-                    <div className="voice-status">
-                        <span className={`voice-dot ${isVoiceListening ? 'on' : ''}`} />
-                        <span className="voice-status-text">
-                            {isVoiceSpeaking
-                                ? 'Listening'
-                                : isVoiceListening
-                                    ? 'Voice On'
-                                    : 'Connecting'}
-                        </span>
-                        {lastVoiceCommand && (
-                            <span className="voice-last-command">Last: {lastVoiceCommand}</span>
-                        )}
-                    </div>
-                )}
-
-                <button
-                    className="control-btn qa-btn"
-                    onClick={onOpenQa}
-                    title="Open Q&A"
-                >
-                    <MessageSquareText size={20} />
-                </button>
-
-                <button
-                    className="control-btn toc-btn"
-                    onClick={onOpenToc}
-                    title="Table of Contents"
-                >
-                    <List size={20} />
-                </button>
+                    <button
+                        className="control-btn toc-btn"
+                        onClick={onOpenToc}
+                        title="Table of Contents"
+                    >
+                        <List size={20} />
+                    </button>
+                </div>
             </div>
 
             {/* Row 2: Progress */}

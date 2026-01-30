@@ -21,6 +21,34 @@
     box-sizing: border-box;
 }
 
+.controls-left,
+.controls-center,
+.controls-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.controls-left,
+.controls-right {
+    flex: 1;
+}
+
+.controls-left {
+    justify-content: flex-start;
+}
+
+.controls-center {
+    justify-content: center;
+    flex: 0 1 40%;
+    min-width: 0;
+}
+
+.controls-right {
+    justify-content: flex-end;
+}
+
 .play-pause-btn {
     width: 44px;
     height: 44px;
@@ -101,15 +129,6 @@
     animation: pulse-orange 1.4s infinite;
 }
 
-.voice-pill {
-    font-size: 0.65rem;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: rgba(249, 115, 22, 0.2);
-    color: var(--color-text-primary);
-    letter-spacing: 0.02em;
-}
-
 .voice-status {
     display: flex;
     align-items: center;
@@ -117,6 +136,10 @@
     font-size: 0.7rem;
     color: var(--color-text-secondary);
     min-width: 0;
+}
+
+.controls-center .voice-status {
+    max-width: 100%;
 }
 
 .voice-dot {
@@ -134,6 +157,8 @@
 
 .voice-status-text {
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .voice-last-command {
@@ -218,6 +243,16 @@
     .controls-row-main {
         padding: 8px 16px;
         gap: 8px;
+    }
+
+    .controls-left,
+    .controls-center,
+    .controls-right {
+        gap: 8px;
+    }
+
+    .controls-center .voice-status {
+        max-width: 140px;
     }
 
     .play-pause-btn {
