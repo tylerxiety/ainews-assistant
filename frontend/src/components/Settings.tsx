@@ -5,9 +5,11 @@ import {
     saveClickUpSettings,
     clearClickUpSettings,
 } from '../lib/clickup'
+import { useLanguage, Language } from '../i18n'
 import './Settings.css'
 
 export default function Settings() {
+    const { language, setLanguage, t, tArray } = useLanguage()
     const [apiToken, setApiToken] = useState('')
     const [listId, setListId] = useState('')
     const [isConfigured, setIsConfigured] = useState(false)
@@ -50,61 +52,84 @@ export default function Settings() {
         setTimeout(() => setSaveStatus(null), 2000)
     }
 
+    const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setLanguage(e.target.value as Language)
+    }
+
     return (
         <div className="settings">
             <header className="settings-header">
-                <Link to="/" className="back-link">&larr; Back</Link>
-                <h1>Settings</h1>
+                <Link to="/" className="back-link">&larr; {t('common.back')}</Link>
+                <h1>{t('settings.title')}</h1>
             </header>
 
             <section className="settings-section">
                 <h2>
-                    <span className="section-icon">📌</span>
-                    ClickUp Integration
+                    <span className="section-icon">🌐</span>
+                    {t('settings.language')}
                 </h2>
                 <p className="section-description">
-                    Connect to ClickUp to bookmark newsletter items as tasks.
-                    Your credentials are stored locally in your browser.
+                    {t('settings.languageDescription')}
+                </p>
+                <div className="form-group">
+                    <select
+                        value={language}
+                        onChange={handleLanguageChange}
+                        className="language-select"
+                    >
+                        <option value="en">{t('settings.english')}</option>
+                        <option value="zh">{t('settings.chinese')}</option>
+                    </select>
+                </div>
+            </section>
+
+            <section className="settings-section">
+                <h2>
+                    <span className="section-icon">📌</span>
+                    {t('settings.clickupTitle')}
+                </h2>
+                <p className="section-description">
+                    {t('settings.clickupDescription')}
                 </p>
 
                 <form onSubmit={handleSave} className="settings-form">
                     <div className="form-group">
-                        <label htmlFor="apiToken">API Token</label>
+                        <label htmlFor="apiToken">{t('settings.apiToken')}</label>
                         <div className="input-with-toggle">
                             <input
                                 id="apiToken"
                                 type={showToken ? 'text' : 'password'}
                                 value={apiToken}
                                 onChange={(e) => setApiToken(e.target.value)}
-                                placeholder="pk_12345678_..."
+                                placeholder={t('settings.apiTokenPlaceholder')}
                                 autoComplete="off"
                             />
                             <button
                                 type="button"
                                 className="toggle-visibility"
                                 onClick={() => setShowToken(!showToken)}
-                                title={showToken ? 'Hide token' : 'Show token'}
+                                title={showToken ? t('settings.hideToken') : t('settings.showToken')}
                             >
                                 {showToken ? '🙈' : '👁️'}
                             </button>
                         </div>
                         <p className="form-hint">
-                            Find it in ClickUp → Settings → Apps → API Token
+                            {t('settings.apiTokenHint')}
                         </p>
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="listId">List ID</label>
+                        <label htmlFor="listId">{t('settings.listId')}</label>
                         <input
                             id="listId"
                             type="text"
                             value={listId}
                             onChange={(e) => setListId(e.target.value)}
-                            placeholder="987654321"
+                            placeholder={t('settings.listIdPlaceholder')}
                             autoComplete="off"
                         />
                         <p className="form-hint">
-                            Copy the list link and extract the last number
+                            {t('settings.listIdHint')}
                         </p>
                     </div>
 
@@ -114,7 +139,7 @@ export default function Settings() {
                             className="save-btn"
                             disabled={!apiToken.trim() || !listId.trim()}
                         >
-                            💾 Save Settings
+                            💾 {t('settings.saveSettings')}
                         </button>
 
                         {isConfigured && (
@@ -123,15 +148,15 @@ export default function Settings() {
                                 className="clear-btn"
                                 onClick={handleClear}
                             >
-                                🗑️ Clear Settings
+                                🗑️ {t('settings.clearSettings')}
                             </button>
                         )}
                     </div>
 
                     {saveStatus && (
                         <div className={`save-status ${saveStatus}`}>
-                            {saveStatus === 'saved' && '✓ Settings saved successfully!'}
-                            {saveStatus === 'cleared' && '✓ Settings cleared'}
+                            {saveStatus === 'saved' && `✓ ${t('settings.settingsSaved')}`}
+                            {saveStatus === 'cleared' && `✓ ${t('settings.settingsCleared')}`}
                         </div>
                     )}
                 </form>
@@ -139,14 +164,14 @@ export default function Settings() {
                 {isConfigured && (
                     <div className="config-status configured">
                         <span className="status-icon">✓</span>
-                        <span>ClickUp is connected</span>
+                        <span>{t('settings.clickupConnected')}</span>
                     </div>
                 )}
 
                 {!isConfigured && (
                     <div className="config-status not-configured">
                         <span className="status-icon">○</span>
-                        <span>ClickUp not configured</span>
+                        <span>{t('settings.clickupNotConfigured')}</span>
                     </div>
                 )}
             </section>
@@ -154,29 +179,25 @@ export default function Settings() {
             <section className="settings-section help-section">
                 <h2>
                     <span className="section-icon">❓</span>
-                    How to Get Credentials
+                    {t('settings.helpTitle')}
                 </h2>
 
                 <div className="help-steps">
                     <div className="help-step">
-                        <h3>1. Get your API Token</h3>
+                        <h3>{t('settings.getApiToken')}</h3>
                         <ol>
-                            <li>Open <a href="https://app.clickup.com" target="_blank" rel="noopener noreferrer">ClickUp</a></li>
-                            <li>Click your avatar (bottom-left) → <strong>Settings</strong></li>
-                            <li>Click <strong>Apps</strong> in the sidebar</li>
-                            <li>Scroll to <strong>API Token</strong> section</li>
-                            <li>Click <strong>Generate</strong> or copy existing</li>
+                            {tArray('settings.getApiTokenSteps').map((step, idx) => (
+                                <li key={idx}>{step}</li>
+                            ))}
                         </ol>
                     </div>
 
                     <div className="help-step">
-                        <h3>2. Get your List ID</h3>
+                        <h3>{t('settings.getListId')}</h3>
                         <ol>
-                            <li>Open the List where you want bookmarks</li>
-                            <li>Click the <strong>⋮</strong> menu on the list</li>
-                            <li>Select <strong>Copy link</strong></li>
-                            <li>The URL looks like: <code>app.clickup.com/123/v/li/<strong>987654321</strong></code></li>
-                            <li>The last number is your List ID</li>
+                            {tArray('settings.getListIdSteps').map((step, idx) => (
+                                <li key={idx}>{step}</li>
+                            ))}
                         </ol>
                     </div>
                 </div>

@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 import { fetchIssues } from '../lib/supabase'
 import { API_URL } from '../lib/api'
 import { Issue } from '../types'
+import { useLanguage } from '../i18n'
 import Loading from './Loading'
 import './IssueList.css'
 
 type ProcessingStatus = 'idle' | 'processing' | 'done' | 'error'
 
 export default function IssueList() {
+  const { t } = useLanguage()
   const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,17 +75,17 @@ export default function IssueList() {
   }
 
   if (loading) {
-    return <Loading message="Loading newsletters..." />
+    return <Loading />
   }
 
   if (error) {
     return (
       <div className="error-container">
         <div className="error-icon">!</div>
-        <p className="error-message">Failed to load newsletters</p>
+        <p className="error-message">{t('issueList.loadFailed')}</p>
         <p className="error-detail">{error}</p>
         <button className="retry-btn" onClick={() => window.location.reload()}>
-          Try again
+          {t('common.tryAgain')}
         </button>
       </div>
     )
@@ -92,8 +94,8 @@ export default function IssueList() {
   return (
     <div className="issue-list">
       <header className="issue-list-header">
-        <h1>Newsletter Issues</h1>
-        <Link to="/settings" className="settings-link" title="Settings">⚙️</Link>
+        <h1>{t('issueList.title')}</h1>
+        <Link to="/settings" className="settings-link" title={t('common.settings')}>⚙️</Link>
       </header>
 
       <section className="process-section">
@@ -102,7 +104,7 @@ export default function IssueList() {
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste newsletter URL..."
+            placeholder={t('issueList.urlPlaceholder')}
             required
             disabled={processingStatus === 'processing'}
             className="url-input"
@@ -112,21 +114,21 @@ export default function IssueList() {
             disabled={processingStatus === 'processing' || !url}
             className="process-btn"
           >
-            {processingStatus === 'processing' ? 'Processing...' : 'Add'}
+            {processingStatus === 'processing' ? t('issueList.processing') : t('common.add')}
           </button>
         </form>
         {processingStatus === 'error' && (
           <div className="process-error">{processError}</div>
         )}
         {processingStatus === 'done' && (
-          <div className="process-success">Processing started! It will appear below shortly.</div>
+          <div className="process-success">{t('issueList.processSuccess')}</div>
         )}
       </section>
 
       {issues.length === 0 ? (
         <div className="empty">
-          <p>No issues found.</p>
-          <p className="hint">Process a newsletter above to get started.</p>
+          <p>{t('issueList.noIssues')}</p>
+          <p className="hint">{t('issueList.noIssuesHint')}</p>
         </div>
       ) : (
         <ul>
@@ -137,15 +139,15 @@ export default function IssueList() {
                 <div className="issue-meta">
                   <span className="published-date">
                     {issue.published_at
-                      ? new Date(issue.published_at).toLocaleDateString('en-US', {
+                      ? new Date(issue.published_at).toLocaleDateString(t('dates.locale'), {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
                       })
-                      : 'Unknown date'}
+                      : t('common.unknownDate')}
                   </span>
                   <span className={`status ${issue.processed_at ? 'processed' : 'pending'}`}>
-                    {issue.processed_at ? 'Ready to play' : 'Processing...'}
+                    {issue.processed_at ? t('issueList.readyToPlay') : t('issueList.processing')}
                   </span>
                 </div>
               </Link>

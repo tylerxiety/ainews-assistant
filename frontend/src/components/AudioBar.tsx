@@ -1,4 +1,5 @@
 import { Play, Pause, Mic, MessageSquareText, List, AudioWaveform } from 'lucide-react'
+import { useLanguage } from '../i18n'
 import './AudioBar.css'
 
 interface AudioBarProps {
@@ -42,6 +43,7 @@ export default function AudioBar({
     onOpenQa,
     disabled
 }: AudioBarProps) {
+    const { t } = useLanguage()
 
     const formatTime = (seconds: number) => {
         if (isNaN(seconds)) return '0:00'
@@ -59,7 +61,7 @@ export default function AudioBar({
                         className="play-pause-btn"
                         onClick={onPlayPause}
                         disabled={disabled}
-                        title={isPlaying ? "Pause" : "Play"}
+                        title={isPlaying ? t('audioBar.pause') : t('audioBar.play')}
                     >
                         {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
                     </button>
@@ -68,7 +70,7 @@ export default function AudioBar({
                         {formatTime(currentTime)} / {formatTime(duration)}
                     </div>
 
-                    <button className="control-btn speed-btn" onClick={onSpeedCycle} title="Playback Speed">
+                    <button className="control-btn speed-btn" onClick={onSpeedCycle} title={t('audioBar.playbackSpeed')}>
                         <span className="speed-text">{playbackSpeed}x</span>
                     </button>
                 </div>
@@ -77,7 +79,7 @@ export default function AudioBar({
                     <button
                         className={`control-btn voice-toggle-btn ${isVoiceModeActive ? 'active' : ''} ${isVoiceSpeaking ? 'speaking' : ''}`}
                         onClick={onVoiceToggle}
-                        title={isVoiceModeActive ? 'Disable Voice Mode' : 'Enable Voice Mode'}
+                        title={isVoiceModeActive ? t('audioBar.disableVoice') : t('audioBar.enableVoice')}
                     >
                         <AudioWaveform size={20} />
                     </button>
@@ -87,13 +89,13 @@ export default function AudioBar({
                             <span className={`voice-dot ${isVoiceListening ? 'on' : ''}`} />
                             <span className="voice-status-text">
                                 {isVoiceSpeaking
-                                    ? 'Listening'
+                                    ? t('audioBar.voiceListening')
                                     : isVoiceListening
-                                        ? 'Voice On'
-                                        : 'Connecting'}
+                                        ? t('audioBar.voiceOn')
+                                        : t('audioBar.voiceConnecting')}
                             </span>
                             {lastVoiceCommand && (
-                                <span className="voice-last-command">Last: {lastVoiceCommand}</span>
+                                <span className="voice-last-command">{t('audioBar.lastCommand', { command: lastVoiceCommand })}</span>
                             )}
                         </div>
                     )}
@@ -103,7 +105,7 @@ export default function AudioBar({
                     <button
                         className={`control-btn mic-btn ${isRecording ? 'listening' : ''}`}
                         onClick={onMicClick}
-                        title="Ask a question"
+                        title={t('audioBar.askQuestion')}
                     >
                         <Mic size={20} />
                     </button>
@@ -111,7 +113,7 @@ export default function AudioBar({
                     <button
                         className="control-btn qa-btn"
                         onClick={onOpenQa}
-                        title="Open Q&A"
+                        title={t('audioBar.openQa')}
                     >
                         <MessageSquareText size={20} />
                     </button>
@@ -119,7 +121,7 @@ export default function AudioBar({
                     <button
                         className="control-btn toc-btn"
                         onClick={onOpenToc}
-                        title="Table of Contents"
+                        title={t('audioBar.tableOfContents')}
                     >
                         <List size={20} />
                     </button>

@@ -61,10 +61,21 @@ class Config:
 
     # === TTS (from config.yaml) ===
     _tts = _backend.get("tts", {})
-    
-    TTS_VOICE_NAME: str = _tts.get("voiceName", "en-US-Chirp3-HD-Aoede")
-    TTS_LANGUAGE_CODE: str = _tts.get("languageCode", "en-US")
+    _tts_en = _tts.get("en", {})
+    _tts_zh = _tts.get("zh", {})
+
+    TTS_VOICE_NAME_EN: str = _tts_en.get("voiceName", "en-US-Chirp3-HD-Aoede")
+    TTS_LANGUAGE_CODE_EN: str = _tts_en.get("languageCode", "en-US")
+    TTS_VOICE_NAME_ZH: str = _tts_zh.get("voiceName", "cmn-CN-Chirp3-HD-Aoede")
+    TTS_LANGUAGE_CODE_ZH: str = _tts_zh.get("languageCode", "cmn-CN")
     TTS_SPEAKING_RATE: float = _tts.get("speakingRate", 1.0)
+
+    @classmethod
+    def get_tts_config(cls, language: str = "en") -> tuple[str, str]:
+        """Get TTS voice name and language code for the given language."""
+        if language == "zh":
+            return cls.TTS_VOICE_NAME_ZH, cls.TTS_LANGUAGE_CODE_ZH
+        return cls.TTS_VOICE_NAME_EN, cls.TTS_LANGUAGE_CODE_EN
 
     # === VOICE MODE (from config.yaml) ===
     _voice_mode = _raw_config.get("voiceMode", {})
@@ -81,9 +92,40 @@ class Config:
 
 class Prompts:
     """Prompts loaded from config.yaml."""
-    
+
     _prompts = _raw_config.get("prompts", {})
-    
+
     TEXT_CLEANING: str = _prompts.get("textCleaning", "")
-    QA_WITH_AUDIO: str = _prompts.get("qaWithAudio", "")
-    VOICE_MODE: str = _prompts.get("voiceMode", "")
+
+    # Language-specific prompts
+    _qa_with_audio = _prompts.get("qaWithAudio", {})
+    _voice_mode = _prompts.get("voiceMode", {})
+
+    # Handle both old (string) and new (dict) format for backwards compatibility
+    if isinstance(_qa_with_audio, str):
+        QA_WITH_AUDIO_EN: str = _qa_with_audio
+        QA_WITH_AUDIO_ZH: str = _qa_with_audio
+    else:
+        QA_WITH_AUDIO_EN: str = _qa_with_audio.get("en", "")
+        QA_WITH_AUDIO_ZH: str = _qa_with_audio.get("zh", "")
+
+    if isinstance(_voice_mode, str):
+        VOICE_MODE_EN: str = _voice_mode
+        VOICE_MODE_ZH: str = _voice_mode
+    else:
+        VOICE_MODE_EN: str = _voice_mode.get("en", "")
+        VOICE_MODE_ZH: str = _voice_mode.get("zh", "")
+
+    @classmethod
+    def get_qa_prompt(cls, language: str = "en") -> str:
+        """Get Q&A prompt for the given language."""
+        if language == "zh":
+            return cls.QA_WITH_AUDIO_ZH
+        return cls.QA_WITH_AUDIO_EN
+
+    @classmethod
+    def get_voice_mode_prompt(cls, language: str = "en") -> str:
+        """Get voice mode prompt for the given language."""
+        if language == "zh":
+            return cls.VOICE_MODE_ZH
+        return cls.VOICE_MODE_EN

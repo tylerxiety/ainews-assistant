@@ -51,12 +51,12 @@ class NewsletterProcessor:
         self.tts_client = texttospeech.TextToSpeechClient()
         self.storage_client = storage.Client()
 
-        # TTS voice configuration from config.yaml
+        # TTS voice configuration from config.yaml (default to English for newsletter processing)
         self.voice = texttospeech.VoiceSelectionParams(
-            language_code=Config.TTS_LANGUAGE_CODE,
-            name=Config.TTS_VOICE_NAME,
+            language_code=Config.TTS_LANGUAGE_CODE_EN,
+            name=Config.TTS_VOICE_NAME_EN,
         )
-        logger.info(f"Using TTS voice: {Config.TTS_VOICE_NAME}")
+        logger.info(f"Using TTS voice: {Config.TTS_VOICE_NAME_EN}")
         self.audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3,
             speaking_rate=Config.TTS_SPEAKING_RATE,
@@ -549,7 +549,7 @@ class NewsletterProcessor:
         return audio_url, duration_ms
 
     async def ask_with_audio(
-        self, audio_file, issue_id: str
+        self, audio_file, issue_id: str, language: str = "en"
     ) -> tuple[str, str, str]:
         """
         Answer a question from audio input about the entire newsletter issue.
@@ -558,6 +558,7 @@ class NewsletterProcessor:
         Args:
             audio_file: UploadFile from FastAPI
             issue_id: Issue UUID
+            language: Language code for response (en or zh)
 
         Returns:
             tuple: (answer_text, audio_url, transcript)
@@ -602,8 +603,8 @@ class NewsletterProcessor:
             ])
 
             # 3. Call Gemini with audio + context (single call: transcribe + answer)
-            # Use Q&A prompt from config.yaml
-            prompt = Prompts.QA_WITH_AUDIO.format(context=context_text)
+            # Use Q&A prompt from config.yaml (language-specific)
+            prompt = Prompts.get_qa_prompt(language).format(context=context_text)
 
             # Create audio part from GCS URI
             audio_part = Part.from_uri(
@@ -635,16 +636,23 @@ class NewsletterProcessor:
                 answer_text = response_text
                 transcript = "[Transcription unavailable]"
 
-            # 4. Generate TTS for response
+            # 4. Generate TTS for response (using language-specific voice)
             qa_id = str(uuid.uuid4())
             response_blob_name = f"{issue_id}/qna/{qa_id}.mp3"
 
             synthesis_input = texttospeech.SynthesisInput(text=answer_text)
 
+            # Get language-specific TTS config
+            voice_name, language_code = Config.get_tts_config(language)
+            qa_voice = texttospeech.VoiceSelectionParams(
+                language_code=language_code,
+                name=voice_name,
+            )
+
             tts_response = await asyncio.to_thread(
                 self.tts_client.synthesize_speech,
                 input=synthesis_input,
-                voice=self.voice,
+                voice=qa_voice,
                 audio_config=self.audio_config,
             )
 

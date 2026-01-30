@@ -1,0 +1,112 @@
+{
+  "common": {
+    "back": "返回",
+    "settings": "设置",
+    "tryAgain": "重试",
+    "add": "添加",
+    "save": "保存",
+    "clear": "清除",
+    "close": "关闭",
+    "loading": "加载中...",
+    "error": "错误",
+    "unknownDate": "未知日期"
+  },
+  "issueList": {
+    "title": "新闻简报",
+    "urlPlaceholder": "粘贴简报链接...",
+    "processing": "处理中...",
+    "processSuccess": "开始处理！稍后将显示在下方。",
+    "noIssues": "暂无简报。",
+    "noIssuesHint": "在上方添加简报链接开始使用。",
+    "readyToPlay": "可以播放",
+    "loadFailed": "加载简报失败"
+  },
+  "player": {
+    "loadingNewsletter": "加载简报中...",
+    "loadFailed": "加载简报失败",
+    "notFound": "未找到简报",
+    "goHome": "返回首页",
+    "transcribing": "转录中...",
+    "noAnswer": "抱歉，暂时无法获取答案。",
+    "clickupNotConfigured": "ClickUp 未配置。请前往设置页面配置 API 密钥。",
+    "voiceModeConflict": "请先关闭语音模式再使用手动录音。"
+  },
+  "audioBar": {
+    "play": "播放",
+    "pause": "暂停",
+    "playbackSpeed": "播放速度",
+    "enableVoice": "开启语音模式",
+    "disableVoice": "关闭语音模式",
+    "askQuestion": "提问",
+    "openQa": "打开问答",
+    "tableOfContents": "目录",
+    "voiceListening": "聆听中",
+    "voiceOn": "语音已开启",
+    "voiceConnecting": "连接中",
+    "lastCommand": "上次: {command}"
+  },
+  "sidePanel": {
+    "contents": "目录",
+    "qa": "问答",
+    "untitledSection": "未命名章节",
+    "listening": "聆听中...",
+    "processing": "处理中...",
+    "voiceReady": "语音模式就绪",
+    "connecting": "连接中...",
+    "lastCommand": "上次命令: {command}",
+    "qaPlaceholder": "点击音频栏的麦克风按钮，对简报内容提问。",
+    "autoPlayBlocked": "浏览器阻止了自动播放。点击收听：",
+    "playAnswer": "播放回答",
+    "recording": "录音中...",
+    "thinking": "思考中...",
+    "resuming": "恢复播放简报..."
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "languageDescription": "选择界面显示语言。",
+    "english": "English",
+    "chinese": "中文",
+    "clickupTitle": "ClickUp 集成",
+    "clickupDescription": "连接 ClickUp 将简报内容保存为任务。凭证仅存储在本地浏览器中。",
+    "apiToken": "API 密钥",
+    "apiTokenPlaceholder": "pk_12345678_...",
+    "apiTokenHint": "在 ClickUp → 设置 → 应用 → API Token 中获取",
+    "listId": "列表 ID",
+    "listIdPlaceholder": "987654321",
+    "listIdHint": "复制列表链接，提取最后的数字",
+    "saveSettings": "保存设置",
+    "clearSettings": "清除设置",
+    "settingsSaved": "设置已保存！",
+    "settingsCleared": "设置已清除",
+    "clickupConnected": "ClickUp 已连接",
+    "clickupNotConfigured": "ClickUp 未配置",
+    "showToken": "显示密钥",
+    "hideToken": "隐藏密钥",
+    "helpTitle": "如何获取凭证",
+    "getApiToken": "1. 获取 API 密钥",
+    "getApiTokenSteps": [
+      "打开 ClickUp",
+      "点击左下角头像 → 设置",
+      "点击侧边栏的「应用」",
+      "找到 API Token 部分",
+      "点击「生成」或复制现有密钥"
+    ],
+    "getListId": "2. 获取列表 ID",
+    "getListIdSteps": [
+      "打开要保存书签的列表",
+      "点击列表的 ⋮ 菜单",
+      "选择「复制链接」",
+      "链接格式如：app.clickup.com/123/v/li/987654321",
+      "最后的数字就是列表 ID"
+    ]
+  },
+  "dates": {
+    "locale": "zh-CN",
+    "format": {
+      "year": "numeric",
+      "month": "long",
+      "day": "numeric"
+    }
+  }
+}

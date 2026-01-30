@@ -105,8 +105,6 @@ Add a tap-to-enable voice mode to the PWA. While the newsletter plays, users can
 
 ## Testing
 
-**Test Notes (2026-01-28):** Playwright on ngrok failed to load `silero_vad.onnx` (protobuf parsing error), so voice mode could not start. Remaining scenarios blocked.
-
 ### Approach
 Test on iOS Safari PWA + Chrome desktop using browswer agent. Backend WebSocket tested via Python WebSocket client script.
 

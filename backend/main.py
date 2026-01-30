@@ -134,16 +134,23 @@ async def voice_mode_ws(websocket: WebSocket, issue_id: str):
 @app.post("/ask-audio")
 async def ask_question_audio(
     audio: UploadFile = File(...),
-    issue_id: str = Form(...)
+    issue_id: str = Form(...),
+    language: str = Form("en")
 ):
     """
     Ask a question about the entire newsletter issue using audio input.
     The audio is transcribed and answered in a single Gemini call.
+
+    Args:
+        audio: Audio file containing the question
+        issue_id: UUID of the issue
+        language: Language code for response (en or zh)
     """
     try:
         answer_text, audio_url, transcript = await processor.ask_with_audio(
             audio,
-            issue_id
+            issue_id,
+            language=language
         )
 
         return {

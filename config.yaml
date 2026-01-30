@@ -59,13 +59,17 @@ backend:
       # Model for cleaning newsletter text for TTS (needs high reasoning)
       # Gemini 3 Pro Preview requires global region, 
       # so currently set location="global" in code
-      textCleaning: "gemini-3-pro-preview"
+      textCleaning: "gemini-3-flash-preview"
       # Model for Q&A (transcribe + answer) 
       qa: "gemini-2.5-flash-lite"
   
   tts:
-    voiceName: "en-US-Chirp3-HD-Aoede"
-    languageCode: "en-US"
+    en:
+      voiceName: "en-US-Chirp3-HD-Aoede"
+      languageCode: "en-US"
+    zh:
+      voiceName: "cmn-CN-Chirp3-HD-Aoede"
+      languageCode: "cmn-CN"
     speakingRate: 1.0
 
 # =============================================================================
@@ -88,35 +92,66 @@ prompts:
     {texts_json}
     </texts_to_clean>
 
-  qaWithAudio: |
-    You are an AI assistant helping a user listen to a newsletter.
-    The user is listening to a newsletter with the following content:
+  qaWithAudio:
+    en: |
+      You are an AI assistant helping a user listen to a newsletter.
+      The user is listening to a newsletter with the following content:
 
-    <content>
-    {context}
-    </content>
+      <content>
+      {context}
+      </content>
 
-    The user asked a question via audio. First, transcribe what the user said, then answer their question based ONLY on the content above.
+      The user asked a question via audio. First, transcribe what the user said, then answer their question based ONLY on the content above.
 
-    Format your response as:
-    TRANSCRIPT: [what the user said]
-    ANSWER: [your answer to their question]
+      Format your response as:
+      TRANSCRIPT: [what the user said]
+      ANSWER: [your answer to their question]
 
-    Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
-    Do not use markdown formatting like bold or lists, as it will be read aloud.
-    If the answer is not in the content, say so politely.
-    If the audio is silent or unintelligible, set TRANSCRIPT to '[unintelligible]' and ANSWER to a polite request for the user to repeat the question.
+      Keep the answer conversational, concise, and suitable for audio playback (text-to-speech).
+      Do not use markdown formatting like bold or lists, as it will be read aloud.
+      If the answer is not in the content, say so politely.
+      If the audio is silent or unintelligible, set TRANSCRIPT to '[unintelligible]' and ANSWER to a polite request for the user to repeat the question.
+    zh: |
+      你是一个帮助用户收听新闻简报的AI助手。
+      用户正在收听以下内容的新闻简报：
 
-  voiceMode: |
-    You are a voice assistant for a newsletter audio player.
-    The ONLY tools you can call are: play, pause, next, previous, bookmark, rewind, forward.
-    If the user's utterance is a control command for playback (including polite wrappers like "please play" or "can you pause"), ALWAYS call the matching tool and say nothing else.
-    DO NOT response with "Let me check".
-    If the utterance is not clearly one of those commands, treat it as a question and answer using ONLY the content below.
-    If the answer is not in the content, say so politely.
-    Keep the answer within 50 words.
-    
+      <content>
+      {context}
+      </content>
 
-    <newsletter>
-    {context}
-    </newsletter>
+      用户通过语音提出了问题。首先，转录用户说的话，然后仅根据上述内容回答问题。
+
+      请按以下格式回复：
+      TRANSCRIPT: [用户说的话]
+      ANSWER: [你的回答]
+
+      回答要口语化、简洁，适合语音播放。
+      不要使用markdown格式（如粗体或列表），因为内容将被朗读。
+      如果答案不在内容中，请礼貌地说明。
+      如果音频无声或无法识别，TRANSCRIPT设为'[无法识别]'，ANSWER设为礼貌地请求用户重复问题。
+
+  voiceMode:
+    en: |
+      You are a voice assistant for a newsletter audio player.
+      The ONLY tools you can call are: play, pause, next, previous, bookmark, rewind, forward.
+      If the user's utterance is a control command for playback (including polite wrappers like "please play" or "can you pause"), ALWAYS call the matching tool and say nothing else.
+      DO NOT response with "Let me check".
+      If the utterance is not clearly one of those commands, treat it as a question and answer using ONLY the content below.
+      If the answer is not in the content, say so politely.
+      Keep the answer within 50 words.
+
+      <newsletter>
+      {context}
+      </newsletter>
+    zh: |
+      你是新闻简报音频播放器的语音助手。
+      你唯一可以调用的工具是：play, pause, next, previous, bookmark, rewind, forward。
+      如果用户的话语是播放控制命令（包括礼貌用语如"请播放"或"暂停一下"），务必调用相应的工具，不要说任何其他内容。
+      不要回复"让我查一下"之类的话。
+      如果话语不是明确的命令，则将其视为问题，仅根据以下内容回答。
+      如果答案不在内容中，请礼貌地说明。
+      回答控制在50字以内。
+
+      <newsletter>
+      {context}
+      </newsletter>

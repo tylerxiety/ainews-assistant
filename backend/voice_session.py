@@ -19,7 +19,9 @@ from config import Config, Prompts
 logger = logging.getLogger(__name__)
 
 PCM_INPUT_MIME = "audio/pcm;rate=16000"
-COMMAND_WORDS = {
+
+# English command words
+COMMAND_WORDS_EN = {
     "play",
     "pause",
     "next",
@@ -28,8 +30,30 @@ COMMAND_WORDS = {
     "rewind",
     "forward",
 }
+
+# Chinese command words mapped to English equivalents
+COMMAND_WORDS_ZH = {
+    "播放": "play",
+    "开始": "play",
+    "暂停": "pause",
+    "停止": "pause",
+    "下一个": "next",
+    "下一条": "next",
+    "上一个": "previous",
+    "上一条": "previous",
+    "收藏": "bookmark",
+    "书签": "bookmark",
+    "后退": "rewind",
+    "倒退": "rewind",
+    "快进": "forward",
+    "前进": "forward",
+}
+
+# Combined for quick lookup
+COMMAND_WORDS = COMMAND_WORDS_EN | set(COMMAND_WORDS_ZH.keys())
+
 COMMAND_NOUNS = {"segment", "story", "one", "item"}
-FILLER_WORDS = {
+FILLER_WORDS_EN = {
     "please",
     "now",
     "thanks",
@@ -44,12 +68,47 @@ FILLER_WORDS = {
     "an",
     "to",
 }
+# Chinese filler words that appear BEFORE commands
+FILLER_WORDS_ZH_PREFIX = {
+    "请",
+    "帮我",
+    "帮",
+    "我",
+}
+# Chinese particles that appear AFTER commands
+FILLER_WORDS_ZH_SUFFIX = {
+    "一下",
+    "吧",
+    "啊",
+    "呢",
+    "了",
+}
+FILLER_WORDS_ZH = FILLER_WORDS_ZH_PREFIX | FILLER_WORDS_ZH_SUFFIX
+FILLER_WORDS = FILLER_WORDS_EN | FILLER_WORDS_ZH
 
 
 def _normalize_command_text(text: str) -> list[str]:
-    cleaned = re.sub(r"[^a-z0-9\\s]", " ", text.lower())
+    """Normalize text for command detection, supporting both English and Chinese."""
+    # Convert to lowercase for English words
+    text_lower = text.lower()
+    # Remove punctuation but keep Chinese characters and alphanumeric
+    cleaned = re.sub(r"[^\w\u4e00-\u9fff\s]", " ", text_lower)
+
+    # For Chinese text, remove prefix filler words from the beginning
+    for filler in sorted(FILLER_WORDS_ZH_PREFIX, key=len, reverse=True):
+        if cleaned.startswith(filler):
+            cleaned = cleaned[len(filler):]
+            break
+
+    # Remove suffix filler words from the end
+    for filler in sorted(FILLER_WORDS_ZH_SUFFIX, key=len, reverse=True):
+        if cleaned.endswith(filler):
+            cleaned = cleaned[:-len(filler)]
+            break
+
     tokens = [token for token in cleaned.split() if token]
-    while tokens and tokens[0] in FILLER_WORDS:
+    # Remove leading English filler words
+    while tokens and tokens[0] in FILLER_WORDS_EN:
         tokens.pop(0)
     return tokens
 
@@ -59,9 +118,17 @@ def _detect_command(text: str) -> tuple[str | None, dict[str, Any]]:
     if not tokens:
         return None, {}
 
-    command = tokens[0]
-    if command not in COMMAND_WORDS:
+    first_token = tokens[0]
+
+    # Check if it's a recognized command
+    if first_token not in COMMAND_WORDS:
         return None, {}
+
+    # Normalize Chinese commands to English equivalents
+    if first_token in COMMAND_WORDS_ZH:
+        command = COMMAND_WORDS_ZH[first_token]
+    else:
+        command = first_token
 
     rest = tokens[1:]
     if not rest:
@@ -89,7 +156,8 @@ def _detect_command(text: str) -> tuple[str | None, dict[str, Any]]:
 
 def build_system_prompt(context: str) -> str:
     """Create the system prompt with newsletter context and tool guidance."""
-    template = Prompts.VOICE_MODE.strip()
+    # Use English prompt for voice mode (commands work bilingually)
+    template = Prompts.VOICE_MODE_EN.strip()
     if template:
         if "{context}" in template:
             return template.replace("{context}", context)

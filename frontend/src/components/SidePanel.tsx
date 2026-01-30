@@ -1,5 +1,6 @@
 import { TopicGroup, ConversationMessage } from '../types'
 import { X, Play } from 'lucide-react'
+import { useLanguage } from '../i18n'
 import './SidePanel.css'
 
 interface SidePanelProps {
@@ -45,6 +46,7 @@ export default function SidePanel({
     qaPlaybackFailed,
     onPlayQaManually
 }: SidePanelProps) {
+    const { t } = useLanguage()
 
     if (!isOpen) return null
 
@@ -58,16 +60,16 @@ export default function SidePanel({
                             className={`tab-btn ${activeTab === 'toc' ? 'active' : ''}`}
                             onClick={() => onTabChange('toc')}
                         >
-                            Contents
+                            {t('sidePanel.contents')}
                         </button>
                         <button
                             className={`tab-btn ${activeTab === 'qa' ? 'active' : ''}`}
                             onClick={() => onTabChange('qa')}
                         >
-                            Q&A
+                            {t('sidePanel.qa')}
                         </button>
                     </div>
-                    <button className="close-panel-btn" onClick={onClose} aria-label="Close">
+                    <button className="close-panel-btn" onClick={onClose} aria-label={t('common.close')}>
                         <X size={24} />
                     </button>
                 </div>
@@ -81,7 +83,7 @@ export default function SidePanel({
                                     className={`toc-item ${index === currentGroupIndex ? 'active' : ''}`}
                                     onClick={() => onGroupSelect(index)}
                                 >
-                                    <span className="toc-title">{group.label || 'Untitled Section'}</span>
+                                    <span className="toc-title">{group.label || t('sidePanel.untitledSection')}</span>
                                 </div>
                             ))}
                         </div>
@@ -95,32 +97,32 @@ export default function SidePanel({
                                         <span className={`voice-status-dot ${voiceListening ? 'on' : ''}`} />
                                         <span className="voice-status-label">
                                             {voiceSpeaking
-                                                ? 'Listening...'
+                                                ? t('sidePanel.listening')
                                                 : voiceProcessing
-                                                    ? 'Processing...'
+                                                    ? t('sidePanel.processing')
                                                     : voiceListening
-                                                        ? 'Voice mode ready'
-                                                        : 'Connecting...'}
+                                                        ? t('sidePanel.voiceReady')
+                                                        : t('sidePanel.connecting')}
                                         </span>
                                     </div>
                                     {lastVoiceCommand && (
                                         <div className="voice-status-command">
-                                            Last command: {lastVoiceCommand}
+                                            {t('sidePanel.lastCommand', { command: lastVoiceCommand })}
                                         </div>
                                     )}
                                 </div>
                             )}
 
                             {messages.length === 0 && !isRecording && !voiceModeActive && (
-                                <p className="qa-placeholder">Tap the mic button in the audio bar to ask a question about this newsletter.</p>
+                                <p className="qa-placeholder">{t('sidePanel.qaPlaceholder')}</p>
                             )}
 
                             {/* Fallback Play Button */}
                             {qaPlaybackFailed && (
                                 <div className="qa-message assistant error-fallback">
-                                    <p>Auto-play blocked by browser. Tap to listen:</p>
+                                    <p>{t('sidePanel.autoPlayBlocked')}</p>
                                     <button className="qa-play-button" onClick={onPlayQaManually}>
-                                        <Play size={16} style={{ marginRight: 6 }} /> Play Answer
+                                        <Play size={16} style={{ marginRight: 6 }} /> {t('sidePanel.playAnswer')}
                                     </button>
                                 </div>
                             )}
@@ -133,22 +135,22 @@ export default function SidePanel({
 
                             {isRecording && (
                                 <div className="qa-message user listening">
-                                    <p>Recording...</p>
+                                    <p>{t('sidePanel.recording')}</p>
                                 </div>
                             )}
                             {isLoadingAnswer && (
                                 <div className="qa-message assistant loading">
-                                    <p>Thinking...</p>
+                                    <p>{t('sidePanel.thinking')}</p>
                                 </div>
                             )}
                             {recorderError && (
                                 <div className="qa-message error">
-                                    <p>Error: {recorderError}</p>
+                                    <p>{t('common.error')}: {recorderError}</p>
                                 </div>
                             )}
                             {isResumingNewsletter && (
                                 <div className="qa-message resuming">
-                                    <p>Resuming newsletter...</p>
+                                    <p>{t('sidePanel.resuming')}</p>
                                 </div>
                             )}
                         </div>

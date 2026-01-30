@@ -1,0 +1,112 @@
+{
+  "common": {
+    "back": "Back",
+    "settings": "Settings",
+    "tryAgain": "Try again",
+    "add": "Add",
+    "save": "Save",
+    "clear": "Clear",
+    "close": "Close",
+    "loading": "Loading...",
+    "error": "Error",
+    "unknownDate": "Unknown date"
+  },
+  "issueList": {
+    "title": "Newsletter Issues",
+    "urlPlaceholder": "Paste newsletter URL...",
+    "processing": "Processing...",
+    "processSuccess": "Processing started! It will appear below shortly.",
+    "noIssues": "No issues found.",
+    "noIssuesHint": "Process a newsletter above to get started.",
+    "readyToPlay": "Ready to play",
+    "loadFailed": "Failed to load newsletters"
+  },
+  "player": {
+    "loadingNewsletter": "Loading newsletter...",
+    "loadFailed": "Failed to load newsletter",
+    "notFound": "Newsletter not found",
+    "goHome": "Go back home",
+    "transcribing": "Transcribing...",
+    "noAnswer": "Sorry, I couldn't get an answer at this time.",
+    "clickupNotConfigured": "ClickUp not configured. Go to Settings to set up your API token.",
+    "voiceModeConflict": "Turn off voice mode to use manual recording."
+  },
+  "audioBar": {
+    "play": "Play",
+    "pause": "Pause",
+    "playbackSpeed": "Playback Speed",
+    "enableVoice": "Enable Voice Mode",
+    "disableVoice": "Disable Voice Mode",
+    "askQuestion": "Ask a question",
+    "openQa": "Open Q&A",
+    "tableOfContents": "Table of Contents",
+    "voiceListening": "Listening",
+    "voiceOn": "Voice On",
+    "voiceConnecting": "Connecting",
+    "lastCommand": "Last: {command}"
+  },
+  "sidePanel": {
+    "contents": "Contents",
+    "qa": "Q&A",
+    "untitledSection": "Untitled Section",
+    "listening": "Listening...",
+    "processing": "Processing...",
+    "voiceReady": "Voice mode ready",
+    "connecting": "Connecting...",
+    "lastCommand": "Last command: {command}",
+    "qaPlaceholder": "Tap the mic button in the audio bar to ask a question about this newsletter.",
+    "autoPlayBlocked": "Auto-play blocked by browser. Tap to listen:",
+    "playAnswer": "Play Answer",
+    "recording": "Recording...",
+    "thinking": "Thinking...",
+    "resuming": "Resuming newsletter..."
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languageDescription": "Choose your preferred language for the interface.",
+    "english": "English",
+    "chinese": "Chinese (中文)",
+    "clickupTitle": "ClickUp Integration",
+    "clickupDescription": "Connect to ClickUp to bookmark newsletter items as tasks. Your credentials are stored locally in your browser.",
+    "apiToken": "API Token",
+    "apiTokenPlaceholder": "pk_12345678_...",
+    "apiTokenHint": "Find it in ClickUp → Settings → Apps → API Token",
+    "listId": "List ID",
+    "listIdPlaceholder": "987654321",
+    "listIdHint": "Copy the list link and extract the last number",
+    "saveSettings": "Save Settings",
+    "clearSettings": "Clear Settings",
+    "settingsSaved": "Settings saved successfully!",
+    "settingsCleared": "Settings cleared",
+    "clickupConnected": "ClickUp is connected",
+    "clickupNotConfigured": "ClickUp not configured",
+    "showToken": "Show token",
+    "hideToken": "Hide token",
+    "helpTitle": "How to Get Credentials",
+    "getApiToken": "1. Get your API Token",
+    "getApiTokenSteps": [
+      "Open ClickUp",
+      "Click your avatar (bottom-left) → Settings",
+      "Click Apps in the sidebar",
+      "Scroll to API Token section",
+      "Click Generate or copy existing"
+    ],
+    "getListId": "2. Get your List ID",
+    "getListIdSteps": [
+      "Open the List where you want bookmarks",
+      "Click the ⋮ menu on the list",
+      "Select Copy link",
+      "The URL looks like: app.clickup.com/123/v/li/987654321",
+      "The last number is your List ID"
+    ]
+  },
+  "dates": {
+    "locale": "en-US",
+    "format": {
+      "year": "numeric",
+      "month": "long",
+      "day": "numeric"
+    }
+  }
+}

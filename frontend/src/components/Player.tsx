@@ -7,6 +7,7 @@ import { Issue, Segment, TopicGroup, ConversationMessage } from '../types'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { useVoiceMode } from '../hooks/useVoiceMode'
 import { usePlaybackState } from '../hooks/usePlaybackState'
+import { useLanguage } from '../i18n'
 import Loading from './Loading'
 import { CONFIG } from '../config'
 import './Player.css'
@@ -18,6 +19,7 @@ import SidePanel from './SidePanel'
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
 
 export default function Player() {
+  const { t, language } = useLanguage()
   const { issueId } = useParams<{ issueId: string }>()
   const [issue, setIssue] = useState<Issue | null>(null)
   const [groups, setGroups] = useState<TopicGroup[]>([])
@@ -90,7 +92,7 @@ export default function Player() {
 
   const handleMicClick = () => {
     if (isVoiceModeActive) {
-      handleVoiceError('Turn off voice mode to use manual recording.')
+      handleVoiceError(t('player.voiceModeConflict'))
       return
     }
     if (isRecording) {
@@ -314,7 +316,7 @@ export default function Player() {
     // Add user message (placeholder while transcribing)
     const userMsg: ConversationMessage = {
       role: 'user',
-      text: 'Transcribing...',
+      text: t('player.transcribing'),
       timestamp: Date.now()
     }
     setMessages(prev => [...prev, userMsg])
@@ -325,6 +327,7 @@ export default function Player() {
       const formData = new FormData()
       formData.append('audio', audioBlob, 'recording.webm')
       formData.append('issue_id', issueId)
+      formData.append('language', language)
 
       // Call backend
       const response = await fetch(apiUrl('/ask-audio'), {
@@ -376,7 +379,7 @@ export default function Player() {
       }
       const errorMsg: ConversationMessage = {
         role: 'assistant',
-        text: "Sorry, I couldn't get an answer at this time.",
+        text: t('player.noAnswer'),
         timestamp: Date.now()
       }
       setMessages(prev => [...prev, errorMsg])
@@ -767,7 +770,7 @@ export default function Player() {
 
     // Check if ClickUp is configured
     if (!isClickUpConfigured()) {
-      setBookmarkError('ClickUp not configured. Go to Settings to set up your API token.')
+      setBookmarkError(t('player.clickupNotConfigured'))
       setTimeout(() => setBookmarkError(null), 4000)
       return
     }
@@ -837,19 +840,19 @@ export default function Player() {
   }
 
   if (loading) {
-    return <Loading message="Loading newsletter..." />
+    return <Loading message={t('player.loadingNewsletter')} />
   }
 
   if (error) {
     return (
       <div className="player-error">
-        <Link to="/" className="back-link">&larr; Back</Link>
+        <Link to="/" className="back-link">&larr; {t('common.back')}</Link>
         <div className="error-container">
           <div className="error-icon">!</div>
-          <p className="error-message">Failed to load newsletter</p>
+          <p className="error-message">{t('player.loadFailed')}</p>
           <p className="error-detail">{error}</p>
           <button className="retry-btn" onClick={() => window.location.reload()}>
-            Try again
+            {t('common.tryAgain')}
           </button>
         </div>
       </div>
@@ -859,11 +862,11 @@ export default function Player() {
   if (!issue) {
     return (
       <div className="player-error">
-        <Link to="/" className="back-link">&larr; Back</Link>
+        <Link to="/" className="back-link">&larr; {t('common.back')}</Link>
         <div className="error-container">
           <div className="error-icon">?</div>
-          <p className="error-message">Newsletter not found</p>
-          <Link to="/" className="retry-btn">Go back home</Link>
+          <p className="error-message">{t('player.notFound')}</p>
+          <Link to="/" className="retry-btn">{t('player.goHome')}</Link>
         </div>
       </div>
     )
@@ -873,13 +876,13 @@ export default function Player() {
     <div className="player">
       <header className="player-header">
         <div className="header-nav">
-          <Link to="/" className="back-link">&larr; Back</Link>
-          <Link to="/settings" className="settings-link" title="Settings">⚙️</Link>
+          <Link to="/" className="back-link">&larr; {t('common.back')}</Link>
+          <Link to="/settings" className="settings-link" title={t('common.settings')}>⚙️</Link>
         </div>
         <h1>{issue.title}</h1>
         {issue.published_at && (
           <p className="published-date">
-            {new Date(issue.published_at).toLocaleDateString('en-US', {
+            {new Date(issue.published_at).toLocaleDateString(t('dates.locale'), {
               year: 'numeric',
               month: 'long',
               day: 'numeric',
