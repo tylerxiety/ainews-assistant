@@ -71,6 +71,7 @@ export default function Player() {
   const [duration, setDuration] = useState(0)
   const currentGroupIndexRef = useRef(currentGroupIndex)
   const currentSegmentIndexRef = useRef(currentSegmentIndex)
+  const prevLanguageRef = useRef(language)
 
   // Playback State Persistence
   const { restoredState, clearState } = usePlaybackState(issueId, currentGroupIndex, currentSegmentIndex)
@@ -201,57 +202,55 @@ export default function Player() {
     }
   }
 
+  // Helper to check if segment has audio for current language
+  const segmentHasAudio = useCallback((seg: Segment) => {
+    if (language === 'zh') return !!seg.audio_url_zh
+    return !!seg.audio_url
+  }, [language])
+
   const goToNextSegment = (autoPlay: boolean) => {
     const groupIndex = currentGroupIndexRef.current
     const segmentIndex = currentSegmentIndexRef.current
-    const currentGroup = groups[groupIndex]
-    if (!currentGroup) return
 
     hasInteractedRef.current = true
 
-    if (segmentIndex < currentGroup.segments.length - 1) {
-      const nextSegmentIndex = segmentIndex + 1
-      currentSegmentIndexRef.current = nextSegmentIndex
-      setCurrentSegmentIndex(nextSegmentIndex)
-      shouldAutoPlayRef.current = autoPlay
-      return
-    }
-
-    if (groupIndex < groups.length - 1) {
-      const nextGroupIndex = groupIndex + 1
-      currentGroupIndexRef.current = nextGroupIndex
-      currentSegmentIndexRef.current = 0
-      setCurrentGroupIndex(nextGroupIndex)
-      setCurrentSegmentIndex(0)
-      shouldAutoPlayRef.current = autoPlay
+    // Find next playable segment
+    for (let gi = groupIndex; gi < groups.length; gi++) {
+      const group = groups[gi]
+      const startSi = gi === groupIndex ? segmentIndex + 1 : 0
+      for (let si = startSi; si < group.segments.length; si++) {
+        if (segmentHasAudio(group.segments[si])) {
+          currentGroupIndexRef.current = gi
+          currentSegmentIndexRef.current = si
+          setCurrentGroupIndex(gi)
+          setCurrentSegmentIndex(si)
+          shouldAutoPlayRef.current = autoPlay
+          return
+        }
+      }
     }
   }
 
   const goToPreviousSegment = (autoPlay: boolean) => {
     const groupIndex = currentGroupIndexRef.current
     const segmentIndex = currentSegmentIndexRef.current
-    const currentGroup = groups[groupIndex]
-    if (!currentGroup) return
 
     hasInteractedRef.current = true
 
-    if (segmentIndex > 0) {
-      const prevSegmentIndex = segmentIndex - 1
-      currentSegmentIndexRef.current = prevSegmentIndex
-      setCurrentSegmentIndex(prevSegmentIndex)
-      shouldAutoPlayRef.current = autoPlay
-      return
-    }
-
-    if (groupIndex > 0) {
-      const prevGroupIndex = groupIndex - 1
-      const prevGroup = groups[prevGroupIndex]
-      const prevSegmentIndex = Math.max(0, prevGroup.segments.length - 1)
-      currentGroupIndexRef.current = prevGroupIndex
-      currentSegmentIndexRef.current = prevSegmentIndex
-      setCurrentGroupIndex(prevGroupIndex)
-      setCurrentSegmentIndex(prevSegmentIndex)
-      shouldAutoPlayRef.current = autoPlay
+    // Find previous playable segment
+    for (let gi = groupIndex; gi >= 0; gi--) {
+      const group = groups[gi]
+      const startSi = gi === groupIndex ? segmentIndex - 1 : group.segments.length - 1
+      for (let si = startSi; si >= 0; si--) {
+        if (segmentHasAudio(group.segments[si])) {
+          currentGroupIndexRef.current = gi
+          currentSegmentIndexRef.current = si
+          setCurrentGroupIndex(gi)
+          setCurrentSegmentIndex(si)
+          shouldAutoPlayRef.current = autoPlay
+          return
+        }
+      }
     }
   }
 
@@ -541,16 +540,64 @@ export default function Player() {
     }
   }, [restoredState, loading, groups])
 
-  // Get current audio URL (per-segment only)
+  // Get current audio URL (per-segment only, language-aware)
   const getCurrentAudio = () => {
     const group = groups[currentGroupIndex]
     if (!group) return null
 
     const segment = group.segments[currentSegmentIndex]
-    return segment?.audio_url || null
+    if (!segment) return null
+
+    // For Chinese, use audio_url_zh if available, otherwise skip this segment
+    if (language === 'zh') {
+      return segment.audio_url_zh || null
+    }
+    return segment.audio_url || null
   }
 
   const currentAudioUrl = getCurrentAudio()
+
+
+  // Handle language switch mid-playback
+  useEffect(() => {
+    if (prevLanguageRef.current !== language && groups.length > 0) {
+      prevLanguageRef.current = language
+
+      // When switching to Chinese, check if current segment has Chinese audio
+      if (language === 'zh') {
+        const group = groups[currentGroupIndex]
+        const segment = group?.segments[currentSegmentIndex]
+        if (segment && !segment.audio_url_zh) {
+          // Find next segment with Chinese audio
+          let found = false
+          for (let gi = currentGroupIndex; gi < groups.length && !found; gi++) {
+            const g = groups[gi]
+            const startSi = gi === currentGroupIndex ? currentSegmentIndex : 0
+            for (let si = startSi; si < g.segments.length && !found; si++) {
+              if (g.segments[si].audio_url_zh) {
+                setCurrentGroupIndex(gi)
+                setCurrentSegmentIndex(si)
+                found = true
+              }
+            }
+          }
+          // If no Chinese audio found, reset to beginning
+          if (!found) {
+            setCurrentGroupIndex(0)
+            setCurrentSegmentIndex(0)
+          }
+        }
+      }
+
+      // Force reload current audio with new language URL
+      if (audioRef.current) {
+        const wasPlaying = !audioRef.current.paused
+        shouldAutoPlayRef.current = wasPlaying
+        // Clear src to force reload
+        audioRef.current.src = ''
+      }
+    }
+  }, [language, groups, currentGroupIndex, currentSegmentIndex])
 
   // Set audio source when indices change
   useEffect(() => {
@@ -694,21 +741,22 @@ export default function Player() {
       return
     }
 
-    // Normal Playback Ended
-    // Move to next segment in group
-    const currentGroup = groups[currentGroupIndex]
-    if (currentGroup && currentSegmentIndex < currentGroup.segments.length - 1) {
-      setCurrentSegmentIndex(currentSegmentIndex + 1)
-      shouldAutoPlayRef.current = true
-      return
+    // Normal Playback Ended - find next playable segment
+    let found = false
+    for (let gi = currentGroupIndex; gi < groups.length && !found; gi++) {
+      const group = groups[gi]
+      const startSi = gi === currentGroupIndex ? currentSegmentIndex + 1 : 0
+      for (let si = startSi; si < group.segments.length && !found; si++) {
+        if (segmentHasAudio(group.segments[si])) {
+          setCurrentGroupIndex(gi)
+          setCurrentSegmentIndex(si)
+          shouldAutoPlayRef.current = true
+          found = true
+        }
+      }
     }
 
-    // Move to next group
-    if (currentGroupIndex < groups.length - 1) {
-      setCurrentGroupIndex(currentGroupIndex + 1)
-      setCurrentSegmentIndex(0)
-      shouldAutoPlayRef.current = true
-    } else {
+    if (!found) {
       // Finished all groups
       shouldAutoPlayRef.current = false
       setIsPlaying(false)
@@ -925,6 +973,7 @@ export default function Player() {
         bookmarkingSegment={bookmarkingSegment}
         onSegmentClick={handleSegmentClick}
         onBookmark={handleBookmark}
+        language={language}
       />
 
       <SidePanel

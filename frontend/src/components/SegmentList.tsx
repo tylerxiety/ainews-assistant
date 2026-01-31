@@ -11,6 +11,7 @@ interface SegmentListProps {
     bookmarkingSegment: string | null
     onSegmentClick: (groupIndex: number, segmentIndex: number) => void
     onBookmark: (e: React.MouseEvent, segment: Segment) => void
+    language: string
 }
 
 export default function SegmentList({
@@ -20,7 +21,8 @@ export default function SegmentList({
     bookmarkedSegments,
     bookmarkingSegment,
     onSegmentClick,
-    onBookmark
+    onBookmark,
+    language
 }: SegmentListProps) {
     // Helper to render content with inline links
     const renderContentWithLinks = (content: string, links: Segment['links']) => {
@@ -91,18 +93,25 @@ export default function SegmentList({
             {groups.length === 0 ? (
                 <p className="no-segments">No audio segments available.</p>
             ) : (
-                groups.map((group, groupIndex) => (
+                groups.map((group, groupIndex) => {
+                    const groupLabel = language === 'zh' && group.label_zh
+                        ? group.label_zh
+                        : group.label
+                    return (
                     <div
                         key={group.id}
                         id={`group-${group.id}`}
                         className={`topic-group ${groupIndex === currentGroupIndex ? 'group-active' : ''}`}
                     >
                         <div className="group-content">
-                            {group.label && <h3 className="group-title">{group.label}</h3>}
+                            {groupLabel && <h3 className="group-title">{groupLabel}</h3>}
 
                             <div className="group-items">
                                 {group.segments.map((segment, segmentIndex) => {
                                     const isActive = groupIndex === currentGroupIndex && segmentIndex === currentSegmentIndex
+                                    const displayContent = language === 'zh' && segment.content_raw_zh
+                                        ? segment.content_raw_zh
+                                        : segment.content_raw
                                     return (
                                         <div
                                             key={segment.id}
@@ -112,7 +121,7 @@ export default function SegmentList({
                                             onPointerUp={(e) => handlePointerUp(e, groupIndex, segmentIndex)}
                                         >
                                             <div className="segment-content">
-                                                {renderContentWithLinks(segment.content_raw, segment.links)}
+                                                {renderContentWithLinks(displayContent, segment.links)}
                                             </div>
 
                                             {/* Only show distinct bookmark button if active or bookmarked */}
@@ -139,7 +148,8 @@ export default function SegmentList({
                             </div>
                         </div>
                     </div>
-                ))
+                    )
+                })
             )}
         </div>
     )

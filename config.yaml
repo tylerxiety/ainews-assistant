@@ -92,6 +92,21 @@ prompts:
     {texts_json}
     </texts_to_clean>
 
+  translation: |
+    Translate the following list of English texts to Chinese (Simplified).
+    Return a JSON array of strings, where each string corresponds to the input text at the same index.
+
+    Rules:
+    1. Preserve technical terms and proper nouns (keep them in English if commonly used that way, or translate with English in parentheses)
+    2. Keep the translation natural and conversational for audio playback
+    3. Maintain the same tone and style as the original
+    4. Do not add or remove any content
+    5. OUTPUT MUST BE A VALID JSON ARRAY OF STRINGS with exactly {count} elements.
+
+    <texts_to_translate>
+    {texts_json}
+    </texts_to_translate>
+
   qaWithAudio:
     en: |
       You are an AI assistant helping a user listen to a newsletter.

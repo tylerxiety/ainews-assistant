@@ -19,9 +19,12 @@ export interface Segment {
     topic_group_id?: string
     order_index: number
     content_raw: string
+    content_raw_zh?: string
     links?: SegmentLink[]
     audio_url?: string
     audio_duration_ms?: number
+    audio_url_zh?: string
+    audio_duration_ms_zh?: number
     segment_type: 'section_header' | 'item' | 'topic_header'
     // Allow for other fields from DB
     [key: string]: any
@@ -31,6 +34,7 @@ export interface TopicGroup {
     id: string
     issue_id: string
     label: string
+    label_zh?: string
     audio_url?: string
     audio_duration_ms?: number
     order_index: number

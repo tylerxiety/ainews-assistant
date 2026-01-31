@@ -127,45 +127,91 @@ class NewsletterProcessor:
         async def process_group(group: dict) -> dict:
             async with semaphore:
                 group["issue_id"] = issue_id
-                
-                # 1. Prepare texts for cleaning
+
+                # 1. Prepare texts for cleaning/translation
                 # Include label as first item if present
                 texts_to_clean = []
                 if group["label"]:
                     texts_to_clean.append(group["label"])
-                
+
                 for seg in group["segments"]:
                     texts_to_clean.append(seg["content_raw"])
-                
-                # 2. Batch clean texts
+
+                # 2. Batch clean texts (English)
                 cleaned_texts = await self._clean_texts_batch(texts_to_clean)
-                
-                # 3. Assign cleaned text and generate audio per segment
+
+                # 3. Translate raw texts to Chinese
+                # Translate content_raw (not cleaned) and label
+                translated_texts = await self._translate_texts_batch(texts_to_clean)
+
+                # 4. Clean the translated Chinese texts for TTS
+                # Filter out None values for cleaning, then restore positions
+                texts_to_clean_zh = [t for t in translated_texts if t is not None]
+                if texts_to_clean_zh:
+                    cleaned_zh_list = await self._clean_texts_batch(texts_to_clean_zh)
+                    # Map back to original positions
+                    cleaned_zh_iter = iter(cleaned_zh_list)
+                    cleaned_zh_texts = [
+                        next(cleaned_zh_iter) if t is not None else None
+                        for t in translated_texts
+                    ]
+                else:
+                    cleaned_zh_texts = [None] * len(translated_texts)
+
+                # 5. Assign cleaned text and generate audio per segment
                 idx_offset = 1 if group["label"] else 0
-                label_text = cleaned_texts[0] if group["label"] else ""
-                
+                label_text_en = cleaned_texts[0] if group["label"] else ""
+                label_text_zh = cleaned_zh_texts[0] if group["label"] and cleaned_zh_texts[0] else ""
+
+                # Store translated label for group
+                group["label_zh"] = translated_texts[0] if group["label"] else None
+
                 for i, seg in enumerate(group["segments"]):
-                    clean = cleaned_texts[i + idx_offset]
-                    seg["content_clean"] = clean
-                    
-                    # Text for audio
-                    text_to_speak = clean
-                    if i == 0 and label_text:
-                        # Prepend label to first segment with a pause
-                        text_to_speak = f"{label_text} ... {clean}"
-                    
-                    # Generate audio for this segment
+                    clean_en = cleaned_texts[i + idx_offset]
+                    seg["content_clean"] = clean_en
+
+                    # Store Chinese translations
+                    raw_zh = translated_texts[i + idx_offset]
+                    clean_zh = cleaned_zh_texts[i + idx_offset]
+                    seg["content_raw_zh"] = raw_zh
+                    seg["content_clean_zh"] = clean_zh
+
+                    # Text for English audio
+                    text_to_speak_en = clean_en
+                    if i == 0 and label_text_en:
+                        text_to_speak_en = f"{label_text_en} ... {clean_en}"
+
+                    # Generate English audio
                     audio_url, duration_ms = await self._generate_audio(
-                        text_to_speak, issue_id, group["order_index"], i
+                        text_to_speak_en, issue_id, group["order_index"], i, language="en"
                     )
-                    
                     seg["audio_url"] = audio_url
                     seg["audio_duration_ms"] = duration_ms
-                
+
+                    # Generate Chinese audio (if translation succeeded)
+                    if clean_zh:
+                        text_to_speak_zh = clean_zh
+                        if i == 0 and label_text_zh:
+                            text_to_speak_zh = f"{label_text_zh} ... {clean_zh}"
+
+                        try:
+                            audio_url_zh, duration_ms_zh = await self._generate_audio(
+                                text_to_speak_zh, issue_id, group["order_index"], i, language="zh"
+                            )
+                            seg["audio_url_zh"] = audio_url_zh
+                            seg["audio_duration_ms_zh"] = duration_ms_zh
+                        except Exception as e:
+                            logger.warning(f"Failed to generate Chinese audio for segment {i}: {e}")
+                            seg["audio_url_zh"] = None
+                            seg["audio_duration_ms_zh"] = None
+                    else:
+                        seg["audio_url_zh"] = None
+                        seg["audio_duration_ms_zh"] = None
+
                 # Group audio is no longer used
                 group["audio_url"] = None
                 group["audio_duration_ms"] = 0
-                
+
                 return group
 
         # Execute group processing
@@ -197,10 +243,11 @@ class NewsletterProcessor:
         processed_groups.sort(key=lambda x: x["order_index"])
 
         # Insert into DB
-        # 1. Insert Groups
+        # 1. Insert Groups (including Chinese label)
         groups_payload = [{
             "issue_id": issue_id,
             "label": g["label"],
+            "label_zh": g.get("label_zh"),
             "audio_url": g["audio_url"],
             "audio_duration_ms": g["audio_duration_ms"],
             "order_index": g["order_index"]
@@ -459,7 +506,7 @@ class NewsletterProcessor:
 
         # Use prompt from config.yaml
         prompt = Prompts.TEXT_CLEANING.format(
-            texts_json=json.dumps(texts), 
+            texts_json=json.dumps(texts),
             count=len(texts)
         )
 
@@ -499,9 +546,60 @@ class NewsletterProcessor:
             logger.error(f"Batch cleaning failed: {e}. Returning raw texts.")
             return texts
 
+    async def _translate_texts_batch(self, texts: list[str]) -> list[str]:
+        """
+        Translate a list of English texts to Chinese using Gemini.
+        Uses the same model as text cleaning and translation prompt from config.yaml.
+
+        Args:
+            texts: List of English texts to translate
+
+        Returns:
+            List of Chinese translated texts (same length as input)
+        """
+        if not texts:
+            return []
+
+        prompt = Prompts.TRANSLATION.format(
+            texts_json=json.dumps(texts),
+            count=len(texts)
+        )
+
+        try:
+            response = await asyncio.to_thread(
+                self.gemini_model_cleaning.generate_content,
+                prompt,
+                generation_config={"response_mime_type": "application/json"}
+            )
+
+            response_text = response.text.strip()
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                response_text = "\n".join(lines[1:-1])
+
+            translated = json.loads(response_text)
+
+            if not isinstance(translated, list):
+                logger.error(f"Translation returned non-list: {type(translated)}. Returning None.")
+                return [None] * len(texts)
+
+            if len(translated) != len(texts):
+                logger.error(
+                    f"Translation returned {len(translated)} items, expected {len(texts)}. Returning None."
+                )
+                return [None] * len(texts)
+
+            return translated
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse translation JSON response: {e}. Returning None.")
+            return [None] * len(texts)
+        except Exception as e:
+            logger.error(f"Translation failed: {e}. Returning None.")
+            return [None] * len(texts)
+
 
     async def _generate_audio(
-        self, text: str, issue_id: str, group_index: int, segment_index: int
+        self, text: str, issue_id: str, group_index: int, segment_index: int, language: str = "en"
     ) -> tuple[str, int]:
         """
         Generate audio using Google Cloud TTS.
@@ -511,23 +609,32 @@ class NewsletterProcessor:
             issue_id: Issue UUID
             group_index: Group order index (for organization)
             segment_index: Segment order index (within group)
+            language: Language code ("en" or "zh")
 
         Returns:
             tuple: (gcs_url, duration_ms)
         """
         synthesis_input = texttospeech.SynthesisInput(text=text)
 
+        # Get language-specific TTS config
+        voice_name, language_code = Config.get_tts_config(language)
+        voice = texttospeech.VoiceSelectionParams(
+            language_code=language_code,
+            name=voice_name,
+        )
+
         # Generate audio
         response = await asyncio.to_thread(
             self.tts_client.synthesize_speech,
             input=synthesis_input,
-            voice=self.voice,
+            voice=voice,
             audio_config=self.audio_config,
         )
 
         # Upload to GCS
-        # Name: issue_id/group_{group_index}_segment_{segment_index}.mp3
-        blob_name = f"{issue_id}/group_{group_index}_segment_{segment_index}.mp3"
+        # Name: issue_id/group_{group_index}_segment_{segment_index}[_zh].mp3
+        suffix = "_zh" if language == "zh" else ""
+        blob_name = f"{issue_id}/group_{group_index}_segment_{segment_index}{suffix}.mp3"
         bucket = self.storage_client.bucket(self.gcs_bucket_name)
         blob = bucket.blob(blob_name)
 

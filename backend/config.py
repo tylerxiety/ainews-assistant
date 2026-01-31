@@ -96,6 +96,7 @@ class Prompts:
     _prompts = _raw_config.get("prompts", {})
 
     TEXT_CLEANING: str = _prompts.get("textCleaning", "")
+    TRANSLATION: str = _prompts.get("translation", "")
 
     # Language-specific prompts
     _qa_with_audio = _prompts.get("qaWithAudio", {})

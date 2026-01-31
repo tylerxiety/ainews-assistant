@@ -46,7 +46,7 @@ export default function SidePanel({
     qaPlaybackFailed,
     onPlayQaManually
 }: SidePanelProps) {
-    const { t } = useLanguage()
+    const { t, language } = useLanguage()
 
     if (!isOpen) return null
 
@@ -77,15 +77,20 @@ export default function SidePanel({
                 <div className="side-panel-content">
                     {activeTab === 'toc' && (
                         <div className="toc-list">
-                            {groups.map((group, index) => (
-                                <div
-                                    key={group.id}
-                                    className={`toc-item ${index === currentGroupIndex ? 'active' : ''}`}
-                                    onClick={() => onGroupSelect(index)}
-                                >
-                                    <span className="toc-title">{group.label || t('sidePanel.untitledSection')}</span>
-                                </div>
-                            ))}
+                            {groups.map((group, index) => {
+                                const displayLabel = language === 'zh' && group.label_zh
+                                    ? group.label_zh
+                                    : group.label
+                                return (
+                                    <div
+                                        key={group.id}
+                                        className={`toc-item ${index === currentGroupIndex ? 'active' : ''}`}
+                                        onClick={() => onGroupSelect(index)}
+                                    >
+                                        <span className="toc-title">{displayLabel || t('sidePanel.untitledSection')}</span>
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
 
