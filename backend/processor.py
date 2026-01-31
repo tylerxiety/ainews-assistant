@@ -128,6 +128,52 @@ class NewsletterProcessor:
             async with semaphore:
                 group["issue_id"] = issue_id
 
+                # Handle section headers (no segments, just label audio)
+                if group.get("is_section_header") and not group["segments"]:
+                    if group["label"]:
+                        # Clean and translate the label
+                        cleaned_labels = await self._clean_texts_batch([group["label"]])
+                        translated_labels = await self._translate_texts_batch([group["label"]])
+                        label_text_en = cleaned_labels[0] if cleaned_labels else group["label"]
+                        group["label_zh"] = translated_labels[0] if translated_labels else None
+
+                        # Clean translated label for TTS
+                        label_text_zh = None
+                        if group["label_zh"]:
+                            cleaned_zh = await self._clean_texts_batch([group["label_zh"]])
+                            label_text_zh = cleaned_zh[0] if cleaned_zh else None
+
+                        # Generate English audio for section header
+                        audio_url, duration_ms = await self._generate_audio(
+                            label_text_en, issue_id, group["order_index"], 0, language="en"
+                        )
+                        group["audio_url"] = audio_url
+                        group["audio_duration_ms"] = duration_ms
+
+                        # Generate Chinese audio for section header
+                        if label_text_zh:
+                            try:
+                                audio_url_zh, duration_ms_zh = await self._generate_audio(
+                                    label_text_zh, issue_id, group["order_index"], 0, language="zh"
+                                )
+                                group["audio_url_zh"] = audio_url_zh
+                                group["audio_duration_ms_zh"] = duration_ms_zh
+                            except Exception as e:
+                                logger.warning(f"Failed to generate Chinese audio for section header: {e}")
+                                group["audio_url_zh"] = None
+                                group["audio_duration_ms_zh"] = None
+                        else:
+                            group["audio_url_zh"] = None
+                            group["audio_duration_ms_zh"] = None
+                    else:
+                        group["label_zh"] = None
+                        group["audio_url"] = None
+                        group["audio_duration_ms"] = 0
+                        group["audio_url_zh"] = None
+                        group["audio_duration_ms_zh"] = None
+
+                    return group
+
                 # 1. Prepare texts for cleaning/translation
                 # Include label as first item if present
                 texts_to_clean = []
@@ -208,7 +254,7 @@ class NewsletterProcessor:
                         seg["audio_url_zh"] = None
                         seg["audio_duration_ms_zh"] = None
 
-                # Group audio is no longer used
+                # Group audio is no longer used (except for section headers handled above)
                 group["audio_url"] = None
                 group["audio_duration_ms"] = 0
 
@@ -243,14 +289,17 @@ class NewsletterProcessor:
         processed_groups.sort(key=lambda x: x["order_index"])
 
         # Insert into DB
-        # 1. Insert Groups (including Chinese label)
+        # 1. Insert Groups (including Chinese label and section header flag)
         groups_payload = [{
             "issue_id": issue_id,
             "label": g["label"],
             "label_zh": g.get("label_zh"),
             "audio_url": g["audio_url"],
             "audio_duration_ms": g["audio_duration_ms"],
-            "order_index": g["order_index"]
+            "audio_url_zh": g.get("audio_url_zh"),
+            "audio_duration_ms_zh": g.get("audio_duration_ms_zh"),
+            "order_index": g["order_index"],
+            "is_section_header": g.get("is_section_header", False)
         } for g in processed_groups]
 
         if groups_payload:
@@ -467,7 +516,8 @@ class NewsletterProcessor:
                     "segments": [],
                     "order_index": group_order,
                     "audio_url": None,
-                    "audio_duration_ms": 0
+                    "audio_duration_ms": 0,
+                    "is_section_header": stype == "section_header"
                 }
                 groups.append(current_group)
                 group_order += 1
@@ -487,8 +537,8 @@ class NewsletterProcessor:
                 
                 current_group["segments"].append(seg)
         
-        # Filter out empty groups (headers with no items waste API calls)
-        groups = [g for g in groups if g["segments"]]
+        # Filter out empty groups EXCEPT section headers (which are kept for navigation/structure)
+        groups = [g for g in groups if g["segments"] or g.get("is_section_header")]
 
         # Re-index after filtering
         for i, g in enumerate(groups):
@@ -598,6 +648,29 @@ class NewsletterProcessor:
             return [None] * len(texts)
 
 
+    def _prepare_text_for_tts(self, text: str, language: str) -> str:
+        """
+        Prepare text for TTS, ensuring sentence boundaries for Google Cloud TTS.
+
+        Google TTS has limits on sentence length. For Chinese text, we need to
+        ensure proper sentence breaks using Chinese punctuation.
+        """
+        if language != "zh":
+            return text
+
+        # For Chinese: replace "Now:" with Chinese equivalent + period to force sentence break
+        # Also add periods after common transition phrases
+        result = text.replace("Now: ", "现在。").replace("Now:", "现在。")
+
+        # If no Chinese sentence-ending punctuation exists, add periods at comma positions
+        # to break up very long sentences (Chinese TTS limit ~1600 chars per sentence)
+        chinese_sentence_enders = "。！？；"
+        if not any(p in result for p in chinese_sentence_enders):
+            # Replace some commas with periods to create sentence breaks
+            result = result.replace("，", "。", 2)  # Replace first 2 commas with periods
+
+        return result
+
     async def _generate_audio(
         self, text: str, issue_id: str, group_index: int, segment_index: int, language: str = "en"
     ) -> tuple[str, int]:
@@ -614,7 +687,9 @@ class NewsletterProcessor:
         Returns:
             tuple: (gcs_url, duration_ms)
         """
-        synthesis_input = texttospeech.SynthesisInput(text=text)
+        # Prepare text for TTS (handles Chinese sentence boundaries)
+        prepared_text = self._prepare_text_for_tts(text, language)
+        synthesis_input = texttospeech.SynthesisInput(text=prepared_text)
 
         # Get language-specific TTS config
         voice_name, language_code = Config.get_tts_config(language)

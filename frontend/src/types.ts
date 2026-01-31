@@ -37,8 +37,11 @@ export interface TopicGroup {
     label_zh?: string
     audio_url?: string
     audio_duration_ms?: number
+    audio_url_zh?: string
+    audio_duration_ms_zh?: number
     order_index: number
     segments: Segment[]
+    is_section_header?: boolean
     created_at?: string
 }
 

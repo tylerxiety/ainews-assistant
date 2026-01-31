@@ -208,15 +208,32 @@ export default function Player() {
     return !!seg.audio_url
   }, [language])
 
+  // Helper to check if group (section header) has audio for current language
+  const groupHasAudio = useCallback((group: TopicGroup) => {
+    if (language === 'zh') return !!group.audio_url_zh
+    return !!group.audio_url
+  }, [language])
+
   const goToNextSegment = (autoPlay: boolean) => {
     const groupIndex = currentGroupIndexRef.current
     const segmentIndex = currentSegmentIndexRef.current
 
     hasInteractedRef.current = true
 
-    // Find next playable segment
+    // Find next playable segment or section header
     for (let gi = groupIndex; gi < groups.length; gi++) {
       const group = groups[gi]
+
+      // Section headers are playable at group level
+      if (group.is_section_header && gi > groupIndex && groupHasAudio(group)) {
+        currentGroupIndexRef.current = gi
+        currentSegmentIndexRef.current = 0
+        setCurrentGroupIndex(gi)
+        setCurrentSegmentIndex(0)
+        shouldAutoPlayRef.current = autoPlay
+        return
+      }
+
       const startSi = gi === groupIndex ? segmentIndex + 1 : 0
       for (let si = startSi; si < group.segments.length; si++) {
         if (segmentHasAudio(group.segments[si])) {
@@ -237,9 +254,11 @@ export default function Player() {
 
     hasInteractedRef.current = true
 
-    // Find previous playable segment
+    // Find previous playable segment or section header
     for (let gi = groupIndex; gi >= 0; gi--) {
       const group = groups[gi]
+
+      // Check segments first (in reverse order)
       const startSi = gi === groupIndex ? segmentIndex - 1 : group.segments.length - 1
       for (let si = startSi; si >= 0; si--) {
         if (segmentHasAudio(group.segments[si])) {
@@ -250,6 +269,16 @@ export default function Player() {
           shouldAutoPlayRef.current = autoPlay
           return
         }
+      }
+
+      // Section headers are playable at group level (check after segments if moving to earlier group)
+      if (group.is_section_header && gi < groupIndex && groupHasAudio(group)) {
+        currentGroupIndexRef.current = gi
+        currentSegmentIndexRef.current = 0
+        setCurrentGroupIndex(gi)
+        setCurrentSegmentIndex(0)
+        shouldAutoPlayRef.current = autoPlay
+        return
       }
     }
   }
@@ -540,10 +569,18 @@ export default function Player() {
     }
   }, [restoredState, loading, groups])
 
-  // Get current audio URL (per-segment only, language-aware)
+  // Get current audio URL (per-segment or group-level for section headers, language-aware)
   const getCurrentAudio = () => {
     const group = groups[currentGroupIndex]
     if (!group) return null
+
+    // Section headers have no segments - use group-level audio
+    if (group.is_section_header) {
+      if (language === 'zh') {
+        return group.audio_url_zh || null
+      }
+      return group.audio_url || null
+    }
 
     const segment = group.segments[currentSegmentIndex]
     if (!segment) return null
@@ -643,14 +680,25 @@ export default function Player() {
     }
   }, [playbackSpeed])
 
-  // Auto-scroll to current SEGMENT (only after user interaction)
+  // Auto-scroll to current SEGMENT or SECTION HEADER (only after user interaction)
   useEffect(() => {
     if (!hasInteractedRef.current) return
 
-    // Find the ref for current segment
-    // We used ID based lookup in Player.tsx, now SegmentList also uses IDs
     const currentGroup = groups[currentGroupIndex]
     if (currentGroup) {
+      // Section headers scroll to the group element
+      if (currentGroup.is_section_header) {
+        const el = document.getElementById(`group-${currentGroup.id}`)
+        if (el) {
+          el.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          })
+        }
+        return
+      }
+
+      // Regular groups scroll to the segment
       const currentSegment = currentGroup.segments[currentSegmentIndex]
       if (currentSegment) {
         const el = document.getElementById(`segment-${currentSegment.id}`)
@@ -741,10 +789,20 @@ export default function Player() {
       return
     }
 
-    // Normal Playback Ended - find next playable segment
+    // Normal Playback Ended - find next playable segment or section header
     let found = false
     for (let gi = currentGroupIndex; gi < groups.length && !found; gi++) {
       const group = groups[gi]
+
+      // Section headers are playable at group level
+      if (group.is_section_header && gi > currentGroupIndex && groupHasAudio(group)) {
+        setCurrentGroupIndex(gi)
+        setCurrentSegmentIndex(0)
+        shouldAutoPlayRef.current = true
+        found = true
+        break
+      }
+
       const startSi = gi === currentGroupIndex ? currentSegmentIndex + 1 : 0
       for (let si = startSi; si < group.segments.length && !found; si++) {
         if (segmentHasAudio(group.segments[si])) {

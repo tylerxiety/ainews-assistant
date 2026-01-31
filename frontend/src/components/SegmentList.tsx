@@ -97,6 +97,21 @@ export default function SegmentList({
                     const groupLabel = language === 'zh' && group.label_zh
                         ? group.label_zh
                         : group.label
+
+                    // Section headers are rendered as larger dividers with no items
+                    if (group.is_section_header) {
+                        return (
+                            <div
+                                key={group.id}
+                                id={`group-${group.id}`}
+                                className={`section-header ${groupIndex === currentGroupIndex ? 'group-active' : ''}`}
+                                onClick={() => onSegmentClick(groupIndex, 0)}
+                            >
+                                {groupLabel && <h2 className="section-title">{groupLabel}</h2>}
+                            </div>
+                        )
+                    }
+
                     return (
                     <div
                         key={group.id}

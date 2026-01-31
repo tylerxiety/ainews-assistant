@@ -81,6 +81,20 @@ export default function SidePanel({
                                 const displayLabel = language === 'zh' && group.label_zh
                                     ? group.label_zh
                                     : group.label
+
+                                // Section headers render as dividers
+                                if (group.is_section_header) {
+                                    return (
+                                        <div
+                                            key={group.id}
+                                            className={`toc-section-divider ${index === currentGroupIndex ? 'active' : ''}`}
+                                            onClick={() => onGroupSelect(index)}
+                                        >
+                                            <span className="toc-section-title">{displayLabel || t('sidePanel.untitledSection')}</span>
+                                        </div>
+                                    )
+                                }
+
                                 return (
                                     <div
                                         key={group.id}
