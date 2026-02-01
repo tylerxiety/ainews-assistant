@@ -181,6 +181,20 @@
   background: var(--color-accent-muted);
 }
 
+/* No Chinese content empty state */
+.no-chinese-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+}
+
+.no-chinese-content p {
+  margin: 0;
+}
+
 /* Mobile responsive styles */
 @media (max-width: 600px) {
   .player {

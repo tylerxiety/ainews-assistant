@@ -59,3 +59,4 @@ supabase/.temp
 temp/
 .vercel
 .gemini-clipboard
+.playwright-mcp

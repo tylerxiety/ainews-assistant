@@ -29,7 +29,8 @@
     "transcribing": "Transcribing...",
     "noAnswer": "Sorry, I couldn't get an answer at this time.",
     "clickupNotConfigured": "ClickUp not configured. Go to Settings to set up your API token.",
-    "voiceModeConflict": "Turn off voice mode to use manual recording."
+    "voiceModeConflict": "Turn off voice mode to use manual recording.",
+    "noChineseContent": "No content available in Chinese"
   },
   "audioBar": {
     "play": "Play",

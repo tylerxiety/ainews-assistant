@@ -48,6 +48,7 @@ export default function Player() {
   const isPlayingQaAudioRef = useRef(false)
   const isResumingNewsletterRef = useRef(false)
   const processedAudioRef = useRef<Blob | null>(null) // To prevent double submission
+  const rawGroupsRef = useRef<TopicGroup[]>([]) // Store unfiltered groups for language switching
   const wasPlayingBeforeVoiceRef = useRef(false)
   const pendingVoiceQuestionRef = useRef(false)
   const voiceQuestionIndexRef = useRef<number | null>(null)
@@ -213,6 +214,63 @@ export default function Player() {
     if (language === 'zh') return !!group.audio_url_zh
     return !!group.audio_url
   }, [language])
+
+  // Filter groups for Chinese showcase mode - only show "AI Twitter Recap" section
+  // and only segments that have Chinese audio
+  const filterGroupsForChinese = useCallback((allGroups: TopicGroup[]): TopicGroup[] => {
+    // Find the "AI Twitter Recap" section header
+    const sectionName = 'AI Twitter Recap'
+    let sectionStartIndex = -1
+    let sectionEndIndex = allGroups.length
+
+    for (let i = 0; i < allGroups.length; i++) {
+      const g = allGroups[i]
+      if (g.is_section_header && g.label?.toLowerCase().includes(sectionName.toLowerCase())) {
+        sectionStartIndex = i
+      } else if (g.is_section_header && sectionStartIndex >= 0) {
+        // Found the next section header - this is where our section ends
+        sectionEndIndex = i
+        break
+      }
+    }
+
+    let sectionGroups: TopicGroup[]
+    if (sectionStartIndex < 0) {
+      // Section not found - use all groups
+      sectionGroups = allGroups
+    } else {
+      // Get groups within the AI Twitter Recap section
+      sectionGroups = allGroups.slice(sectionStartIndex, sectionEndIndex)
+    }
+
+    // Filter out segments without Chinese audio and groups with no remaining segments
+    const filteredGroups: TopicGroup[] = []
+    for (const group of sectionGroups) {
+      if (group.is_section_header) {
+        // Section headers are handled after we know if there are visible segments
+        continue
+      }
+
+      // Filter segments to only those with Chinese audio
+      const filteredSegments = group.segments.filter(seg => !!seg.audio_url_zh)
+      if (filteredSegments.length > 0) {
+        filteredGroups.push({
+          ...group,
+          segments: filteredSegments
+        })
+      }
+    }
+
+    // Only include section header if there are visible segments after it
+    if (filteredGroups.length > 0 && sectionStartIndex >= 0) {
+      const sectionHeader = sectionGroups[0]
+      if (sectionHeader?.is_section_header && sectionHeader.audio_url_zh) {
+        filteredGroups.unshift(sectionHeader)
+      }
+    }
+
+    return filteredGroups
+  }, [])
 
   const goToNextSegment = (autoPlay: boolean) => {
     const groupIndex = currentGroupIndexRef.current
@@ -531,10 +589,12 @@ export default function Player() {
       if (!issueId) return
 
       try {
-        const { issue, groups } = await fetchIssueWithGroups(issueId)
+        const { issue, groups: fetchedGroups } = await fetchIssueWithGroups(issueId)
         setIssue(issue)
-        // Keep all groups; playback uses per-segment audio only
-        setGroups(groups)
+        // Store raw groups for language switching
+        rawGroupsRef.current = fetchedGroups
+        // Initial groups will be filtered by the language effect below
+        setGroups(fetchedGroups)
 
         // Load existing bookmarks
         try {
@@ -553,6 +613,23 @@ export default function Player() {
     }
     loadData()
   }, [issueId])
+
+  // Filter groups based on language (Chinese shows only AI Twitter Recap section)
+  useEffect(() => {
+    if (rawGroupsRef.current.length === 0) return
+
+    const newGroups = language === 'zh'
+      ? filterGroupsForChinese(rawGroupsRef.current)
+      : rawGroupsRef.current
+
+    setGroups(newGroups)
+    // Reset playback position when switching to/from Chinese (different content set)
+    if (prevLanguageRef.current !== language) {
+      setCurrentGroupIndex(0)
+      setCurrentSegmentIndex(0)
+      prevLanguageRef.current = language
+    }
+  }, [language, filterGroupsForChinese])
 
   // Restore state logic
   useEffect(() => {
@@ -1023,16 +1100,22 @@ export default function Player() {
         onError={handleAudioError}
       />
 
-      <SegmentList
-        groups={groups}
-        currentGroupIndex={currentGroupIndex}
-        currentSegmentIndex={currentSegmentIndex}
-        bookmarkedSegments={bookmarkedSegments}
-        bookmarkingSegment={bookmarkingSegment}
-        onSegmentClick={handleSegmentClick}
-        onBookmark={handleBookmark}
-        language={language}
-      />
+      {language === 'zh' && groups.length === 0 ? (
+        <div className="no-chinese-content">
+          <p>{t('player.noChineseContent')}</p>
+        </div>
+      ) : (
+        <SegmentList
+          groups={groups}
+          currentGroupIndex={currentGroupIndex}
+          currentSegmentIndex={currentSegmentIndex}
+          bookmarkedSegments={bookmarkedSegments}
+          bookmarkingSegment={bookmarkingSegment}
+          onSegmentClick={handleSegmentClick}
+          onBookmark={handleBookmark}
+          language={language}
+        />
+      )}
 
       <SidePanel
         isOpen={sidePanelOpen}

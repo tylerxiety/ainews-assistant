@@ -29,7 +29,8 @@
     "transcribing": "转录中...",
     "noAnswer": "抱歉，暂时无法获取答案。",
     "clickupNotConfigured": "ClickUp 未配置。请前往设置页面配置 API 密钥。",
-    "voiceModeConflict": "请先关闭语音模式再使用手动录音。"
+    "voiceModeConflict": "请先关闭语音模式再使用手动录音。",
+    "noChineseContent": "暂无中文内容"
   },
   "audioBar": {
     "play": "播放",
