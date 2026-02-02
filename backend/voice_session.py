@@ -154,10 +154,10 @@ def _detect_command(text: str) -> tuple[str | None, dict[str, Any]]:
     return None, {}
 
 
-def build_system_prompt(context: str) -> str:
+def build_system_prompt(context: str, language: str = "en") -> str:
     """Create the system prompt with newsletter context and tool guidance."""
-    # Use English prompt for voice mode (commands work bilingually)
-    template = Prompts.VOICE_MODE_EN.strip()
+    # Use language-specific prompt for voice mode
+    template = Prompts.get_voice_mode_prompt(language).strip()
     if template:
         if "{context}" in template:
             return template.replace("{context}", context)
@@ -237,9 +237,10 @@ def build_tools() -> list[dict[str, Any]]:
 class VoiceSession:
     """Manage a single Gemini Live session for one client WebSocket."""
 
-    def __init__(self, issue_id: str, context: str, resume_handle: str | None = None):
+    def __init__(self, issue_id: str, context: str, resume_handle: str | None = None, language: str = "en"):
         self.issue_id = issue_id
         self.context = context
+        self.language = language
         self._resume_handle = resume_handle
         self._client = genai.Client(
             vertexai=True,
@@ -259,7 +260,7 @@ class VoiceSession:
     async def _open_session(self) -> Any:
         config_kwargs: dict[str, Any] = {
             "response_modalities": ["AUDIO"],
-            "system_instruction": build_system_prompt(self.context),
+            "system_instruction": build_system_prompt(self.context, self.language),
             "tools": build_tools(),
             "input_audio_transcription": {},
             "output_audio_transcription": {},

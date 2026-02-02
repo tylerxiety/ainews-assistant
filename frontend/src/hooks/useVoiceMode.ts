@@ -19,6 +19,7 @@ export interface VoiceCommand {
 
 interface UseVoiceModeOptions {
   issueId?: string
+  language?: string
   onCommand: (command: VoiceCommand) => void
   onSpeechStart: () => void
   onSpeechEnd: () => void
@@ -53,6 +54,7 @@ function buildWsUrl(path: string) {
 export function useVoiceMode(options: UseVoiceModeOptions): VoiceModeState {
   const {
     issueId,
+    language = 'en',
     onCommand,
     onSpeechStart,
     onSpeechEnd,
@@ -178,7 +180,7 @@ export function useVoiceMode(options: UseVoiceModeOptions): VoiceModeState {
       return
     }
 
-    const wsUrl = buildWsUrl(`/ws/voice/${issueId}`)
+    const wsUrl = buildWsUrl(`/ws/voice/${issueId}?language=${language}`)
     const ws = new WebSocket(wsUrl)
     ws.binaryType = 'arraybuffer'
     wsRef.current = ws
@@ -219,7 +221,7 @@ export function useVoiceMode(options: UseVoiceModeOptions): VoiceModeState {
         }, 1000)
       }
     }
-  }, [handleAudioChunk, handleServerMessage, issueId, onError])
+  }, [handleAudioChunk, handleServerMessage, issueId, language, onError])
 
   const stopVoiceMode = useCallback(() => {
     shouldReconnectRef.current = false

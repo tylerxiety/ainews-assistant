@@ -568,6 +568,7 @@ export default function Player() {
     toggleVoiceMode,
   } = useVoiceMode({
     issueId,
+    language,
     onCommand: handleVoiceCommand,
     onSpeechStart: handleVoiceSpeechStart,
     onSpeechEnd: handleVoiceSpeechEnd,

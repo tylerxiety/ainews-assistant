@@ -769,20 +769,34 @@ class NewsletterProcessor:
 
         try:
             # 2. Fetch context (segments) for the entire issue
-            segments_resp = self.supabase.table("segments") \
-                .select("content_clean, content_raw") \
-                .eq("issue_id", issue_id) \
-                .order("order_index") \
-                .execute()
- 
+            # Select Chinese columns when language is zh, with fallback to English
+            if language == "zh":
+                segments_resp = self.supabase.table("segments") \
+                    .select("content_clean, content_raw, content_clean_zh, content_raw_zh") \
+                    .eq("issue_id", issue_id) \
+                    .order("order_index") \
+                    .execute()
+            else:
+                segments_resp = self.supabase.table("segments") \
+                    .select("content_clean, content_raw") \
+                    .eq("issue_id", issue_id) \
+                    .order("order_index") \
+                    .execute()
+
             if not segments_resp.data:
                 return "I couldn't find the content for this newsletter.", "", ""
 
-            # Combine text
-            context_text = "\n".join([
-                s.get("content_clean") or s.get("content_raw", "")
-                for s in segments_resp.data
-            ])
+            # Combine text - use Chinese content if available, fallback to English
+            if language == "zh":
+                context_text = "\n".join([
+                    s.get("content_clean_zh") or s.get("content_raw_zh") or s.get("content_clean") or s.get("content_raw", "")
+                    for s in segments_resp.data
+                ])
+            else:
+                context_text = "\n".join([
+                    s.get("content_clean") or s.get("content_raw", "")
+                    for s in segments_resp.data
+                ])
 
             # 3. Call Gemini with audio + context (single call: transcribe + answer)
             # Use Q&A prompt from config.yaml (language-specific)

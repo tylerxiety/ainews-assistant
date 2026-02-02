@@ -74,18 +74,34 @@ async def health_check():
     return {"status": "healthy", "service": "newsletter-audio-processor"}
 
 
-async def _fetch_issue_context(issue_id: str) -> str:
-    segments_resp = await asyncio.to_thread(
-        lambda: processor.supabase.table("segments")
-        .select("content_clean, content_raw")
-        .eq("issue_id", issue_id)
-        .order("order_index")
-        .execute()
-    )
+async def _fetch_issue_context(issue_id: str, language: str = "en") -> str:
+    # Select Chinese columns when language is zh
+    if language == "zh":
+        segments_resp = await asyncio.to_thread(
+            lambda: processor.supabase.table("segments")
+            .select("content_clean, content_raw, content_clean_zh, content_raw_zh")
+            .eq("issue_id", issue_id)
+            .order("order_index")
+            .execute()
+        )
+    else:
+        segments_resp = await asyncio.to_thread(
+            lambda: processor.supabase.table("segments")
+            .select("content_clean, content_raw")
+            .eq("issue_id", issue_id)
+            .order("order_index")
+            .execute()
+        )
 
     if not segments_resp.data:
         return ""
 
+    # Use Chinese content if available, fallback to English
+    if language == "zh":
+        return "\n".join(
+            seg.get("content_clean_zh") or seg.get("content_raw_zh") or seg.get("content_clean") or seg.get("content_raw", "")
+            for seg in segments_resp.data
+        )
     return "\n".join(
         seg.get("content_clean") or seg.get("content_raw", "")
         for seg in segments_resp.data
@@ -93,7 +109,7 @@ async def _fetch_issue_context(issue_id: str) -> str:
 
 
 @app.websocket("/ws/voice/{issue_id}")
-async def voice_mode_ws(websocket: WebSocket, issue_id: str):
+async def voice_mode_ws(websocket: WebSocket, issue_id: str, language: str = "en"):
     # Validate UUID format before proceeding
     try:
         uuid.UUID(issue_id)
@@ -111,7 +127,7 @@ async def voice_mode_ws(websocket: WebSocket, issue_id: str):
     except Exception:
         return
 
-    context_text = await _fetch_issue_context(issue_id)
+    context_text = await _fetch_issue_context(issue_id, language)
     if not context_text:
         await websocket.send_text(
             json.dumps(
@@ -121,7 +137,7 @@ async def voice_mode_ws(websocket: WebSocket, issue_id: str):
         await websocket.close()
         return
 
-    voice_session = VoiceSession(issue_id, context_text)
+    voice_session = VoiceSession(issue_id, context_text, language=language)
     if start_payload:
         await voice_session._handle_client_text(start_payload, websocket)
 

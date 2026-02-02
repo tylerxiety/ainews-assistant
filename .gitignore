@@ -60,3 +60,6 @@ temp/
 .vercel
 .gemini-clipboard
 .playwright-mcp
+
+# poster
+poster_zh/
