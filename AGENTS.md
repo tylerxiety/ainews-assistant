@@ -1,15 +1,16 @@
 # Project Instructions
 
 ## Overview
-AI News Assistant - PWA that converts AINews newsletter into listenable audio with visual sync, voice commands/Q&A, and tap-to-bookmark to ClickUp. Auto-processed every 6 hours via Cloud Scheduler.
+AI News Assistant - PWA that converts AINews newsletter into listenable audio with visual sync, voice commands/Q&A, bilingual support (EN/ZH), and tap-to-bookmark to ClickUp. Auto-processed every 6 hours via Cloud Scheduler.
 
 ## Tech Stack
 - **Frontend**: Vite + React 19 + TypeScript + plain CSS (PWA on Vercel), lucide-react icons
 - **Backend**: Python + FastAPI (Cloud Run)
 - **Database**: Supabase (Postgres) | **Storage**: GCS (audio files)
-- **TTS**: Google Cloud TTS (Chirp 3 HD Aoede)
+- **TTS**: Google Cloud TTS (Chirp 3 HD Aoede for EN, cmn-CN for ZH)
 - **AI**: Gemini models (text cleaning, Q&A, voice mode)
 - **Voice Mode**: Gemini Live API via backend WebSocket proxy, client-side VAD (@ricky0123/vad-web)
+- **i18n**: Custom React context + JSON locale files (en/zh)
 - **Config**: Centralized `config.yaml` (shared by frontend/backend)
 
 ## Key Decisions
@@ -18,6 +19,8 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 - **Per-segment audio**: One TTS call per segment; topic groups are for UI/ordering only
 - **Single `<audio>` element**: Newsletter playback only; Q&A audio plays via AudioContext
 - **UI Architecture**: `Player.tsx` orchestrates state; `SegmentList` (content), `AudioBar` (controls), `SidePanel` (TOC + Q&A)
+- **Bilingual content**: Separate `*_zh` columns in DB; skip segments without Chinese audio when UI is ZH
+- **UI localization**: Simple JSON locale files with React context; persisted to localStorage; both EN/ZH voice commands always recognized
 
 ## Conventions
 

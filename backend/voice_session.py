@@ -485,14 +485,14 @@ class VoiceSession:
                 if message.get("bytes") is not None:
                     await self.enqueue_audio(message["bytes"])
                 elif message.get("text") is not None:
-                    await self._handle_client_text(message["text"], websocket)
+                    await self.handle_client_text(message["text"], websocket)
         except Exception:
             logger.info("Client WebSocket disconnected for issue %s", self.issue_id)
             self._stop_event.set()
             await self._audio_queue.put(None)
             await self._reset_session()
 
-    async def _handle_client_text(self, payload: str, websocket: WebSocket) -> None:
+    async def handle_client_text(self, payload: str, websocket: WebSocket) -> None:
         try:
             data = json.loads(payload)
         except json.JSONDecodeError:
