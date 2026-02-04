@@ -52,6 +52,8 @@
     margin: 0;
     color: var(--color-text-secondary);
     line-height: 1.6;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .segment.active p {
@@ -64,6 +66,8 @@
     text-decoration: underline;
     text-decoration-color: var(--color-accent);
     text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .inline-link:hover {
