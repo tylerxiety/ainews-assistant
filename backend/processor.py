@@ -133,13 +133,16 @@ class NewsletterProcessor:
                     if group["label"]:
                         # Clean and translate the label
                         cleaned_labels = await self._clean_texts_batch([group["label"]])
-                        translated_labels = await self._translate_texts_batch([group["label"]])
                         label_text_en = cleaned_labels[0] if cleaned_labels else group["label"]
-                        group["label_zh"] = translated_labels[0] if translated_labels else None
+                        if Config.ENABLE_CHINESE_PROCESSING:
+                            translated_labels = await self._translate_texts_batch([group["label"]])
+                            group["label_zh"] = translated_labels[0] if translated_labels else None
+                        else:
+                            group["label_zh"] = None
 
                         # Clean translated label for TTS
                         label_text_zh = None
-                        if group["label_zh"]:
+                        if Config.ENABLE_CHINESE_PROCESSING and group["label_zh"]:
                             cleaned_zh = await self._clean_texts_batch([group["label_zh"]])
                             label_text_zh = cleaned_zh[0] if cleaned_zh else None
 
@@ -151,7 +154,7 @@ class NewsletterProcessor:
                         group["audio_duration_ms"] = duration_ms
 
                         # Generate Chinese audio for section header
-                        if label_text_zh:
+                        if Config.ENABLE_CHINESE_PROCESSING and label_text_zh:
                             try:
                                 audio_url_zh, duration_ms_zh = await self._generate_audio(
                                     label_text_zh, issue_id, group["order_index"], 0, language="zh"
@@ -186,23 +189,27 @@ class NewsletterProcessor:
                 # 2. Batch clean texts (English)
                 cleaned_texts = await self._clean_texts_batch(texts_to_clean)
 
-                # 3. Translate raw texts to Chinese
-                # Translate content_raw (not cleaned) and label
-                translated_texts = await self._translate_texts_batch(texts_to_clean)
+                # 3. Translate raw texts to Chinese (optional)
+                if Config.ENABLE_CHINESE_PROCESSING:
+                    # Translate content_raw (not cleaned) and label
+                    translated_texts = await self._translate_texts_batch(texts_to_clean)
 
-                # 4. Clean the translated Chinese texts for TTS
-                # Filter out None values for cleaning, then restore positions
-                texts_to_clean_zh = [t for t in translated_texts if t is not None]
-                if texts_to_clean_zh:
-                    cleaned_zh_list = await self._clean_texts_batch(texts_to_clean_zh)
-                    # Map back to original positions
-                    cleaned_zh_iter = iter(cleaned_zh_list)
-                    cleaned_zh_texts = [
-                        next(cleaned_zh_iter) if t is not None else None
-                        for t in translated_texts
-                    ]
+                    # 4. Clean the translated Chinese texts for TTS
+                    # Filter out None values for cleaning, then restore positions
+                    texts_to_clean_zh = [t for t in translated_texts if t is not None]
+                    if texts_to_clean_zh:
+                        cleaned_zh_list = await self._clean_texts_batch(texts_to_clean_zh)
+                        # Map back to original positions
+                        cleaned_zh_iter = iter(cleaned_zh_list)
+                        cleaned_zh_texts = [
+                            next(cleaned_zh_iter) if t is not None else None
+                            for t in translated_texts
+                        ]
+                    else:
+                        cleaned_zh_texts = [None] * len(translated_texts)
                 else:
-                    cleaned_zh_texts = [None] * len(translated_texts)
+                    translated_texts = [None] * len(texts_to_clean)
+                    cleaned_zh_texts = [None] * len(texts_to_clean)
 
                 # 5. Assign cleaned text and generate audio per segment
                 idx_offset = 1 if group["label"] else 0
@@ -210,7 +217,7 @@ class NewsletterProcessor:
                 label_text_zh = cleaned_zh_texts[0] if group["label"] and cleaned_zh_texts[0] else ""
 
                 # Store translated label for group
-                group["label_zh"] = translated_texts[0] if group["label"] else None
+                group["label_zh"] = translated_texts[0] if (Config.ENABLE_CHINESE_PROCESSING and group["label"]) else None
 
                 for i, seg in enumerate(group["segments"]):
                     clean_en = cleaned_texts[i + idx_offset]
@@ -235,7 +242,7 @@ class NewsletterProcessor:
                     seg["audio_duration_ms"] = duration_ms
 
                     # Generate Chinese audio (if translation succeeded)
-                    if clean_zh:
+                    if Config.ENABLE_CHINESE_PROCESSING and clean_zh:
                         text_to_speak_zh = clean_zh
                         if i == 0 and label_text_zh:
                             text_to_speak_zh = f"{label_text_zh} ... {clean_zh}"

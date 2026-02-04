@@ -33,6 +33,7 @@ export default function SegmentList({
 
         // We will construct an array of nodes
         let nodes: React.ReactNode[] = [content]
+        let linkIndex = 0
 
         sortedLinks.forEach(link => {
             if (!link.text) return
@@ -46,7 +47,7 @@ export default function SegmentList({
                         if (i < parts.length - 1) {
                             newNodes.push(
                                 <a
-                                    key={`${link.url}-${i}`}
+                                    key={`link-${linkIndex++}`}
                                     href={link.url}
                                     target="_blank"
                                     rel="noopener noreferrer"

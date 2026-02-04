@@ -38,7 +38,7 @@ AI News Assistant - PWA that converts AINews newsletter into listenable audio wi
 - **All config in `/config.yaml`** — frontend imports via rollup-plugin-yaml, backend via PyYAML
 
 ### Testing
-- Test against ngrok URL, NOT dev server:
+- Test against ngrok URL: https://vicarly-subtransparent-reese.ngrok-free.dev, NOT dev server:
   ```bash
   cd frontend && VITE_API_URL="" npm run build
   cd backend && uv run uvicorn main:app --host 0.0.0.0 --port 8080

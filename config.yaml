@@ -51,6 +51,8 @@ backend:
     httpTimeoutSeconds: 30.0
     # Batch size for inserting segments into database
     segmentBatchSize: 50
+    # Enable Chinese translation + audio generation
+    enableChineseProcessing: false
     # RSS Feed URL for newsletter discovery
     rssUrl: "https://news.smol.ai/rss.xml"
   

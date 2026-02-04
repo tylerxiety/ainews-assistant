@@ -51,6 +51,7 @@ class Config:
     MAX_CONCURRENT_SEGMENTS: int = _processing.get("maxConcurrentSegments", 5)
     HTTP_TIMEOUT: float = _processing.get("httpTimeoutSeconds", 30.0)
     SEGMENT_BATCH_SIZE: int = _processing.get("segmentBatchSize", 50)
+    ENABLE_CHINESE_PROCESSING: bool = _processing.get("enableChineseProcessing", True)
 
     # === AI MODELS (from config.yaml) ===
     _ai = _backend.get("ai", {})
