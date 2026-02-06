@@ -11,13 +11,13 @@ import { test, expect } from '@playwright/test';
  * where link text replacement causes infinite duplication during playback.
  */
 
-const TEST_URL = 'https://vicarly-subtransparent-reese.ngrok-free.dev';
+// Use baseURL from playwright.config.ts (set E2E_BASE_URL env var or defaults to localhost)
 const ISSUE_ID = '395517de-cd52-4bf9-8dac-ea0c3e55b3ce';
 
 test.describe('Link Duplication Bug', () => {
   test('link text should not duplicate when playing audio', async ({ page }) => {
     // Navigate to the player page
-    await page.goto(`${TEST_URL}/player/${ISSUE_ID}`);
+    await page.goto(`/player/${ISSUE_ID}`);
 
     // Wait for segments to load
     await page.waitForSelector('.segment', { timeout: 30000 });
@@ -61,7 +61,7 @@ test.describe('Link Duplication Bug', () => {
   });
 
   test('segment content length should remain stable during playback', async ({ page }) => {
-    await page.goto(`${TEST_URL}/player/${ISSUE_ID}`);
+    await page.goto(`/player/${ISSUE_ID}`);
 
     await page.waitForSelector('.segment', { timeout: 30000 });
 

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const BASE_URL = process.env.E2E_BASE_URL ?? 'https://vicarly-subtransparent-reese.ngrok-free.dev'
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8080'
 
 export default defineConfig({
   testDir: './tests',

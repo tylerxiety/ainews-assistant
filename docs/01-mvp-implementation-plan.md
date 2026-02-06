@@ -9,8 +9,8 @@ Build a PWA that converts AINews newsletter into listenable audio with clean TTS
 | Service | URL |
 |---------|-----|
 | **Frontend PWA** | https://ainews-assistant.vercel.app |
-| **Backend API** | https://newsletter-processor-872179428244.us-central1.run.app |
-| **API Docs** | https://newsletter-processor-872179428244.us-central1.run.app/docs |
+| **Backend API** | https://newsletter-processor-PROJECT_NUMBER.us-central1.run.app |
+| **API Docs** | https://newsletter-processor-PROJECT_NUMBER.us-central1.run.app/docs |
 
 ## Current Status (2026-01-20)
 ✅ **Backend fully functional & deployed to Cloud Run**:
@@ -77,9 +77,9 @@ Build a PWA that converts AINews newsletter into listenable audio with clean TTS
   - [x] 🟩 Get Supabase URL and keys
 
 - [x] 🟩 **Step 3: GCP Setup**
-  - [x] 🟩 Reuse existing GCP project (gen-lang-client-0104465868/heidi)
+  - [x] 🟩 Reuse existing GCP project
   - [x] 🟩 Enable TTS, Storage, Vertex AI, Cloud Run APIs
-  - [x] 🟩 Create GCS bucket (ainews-assistant-audio-heidi)
+  - [x] 🟩 Create GCS bucket
   - [x] 🟩 Create service account (ainews-processor) with proper permissions
   - [x] 🟩 Download service account key JSON
 
@@ -210,7 +210,7 @@ Build a PWA that converts AINews newsletter into listenable audio with clean TTS
   - [x] 🟩 Build Docker image via Cloud Build
   - [x] 🟩 Deploy to Cloud Run (newsletter-processor)
   - [x] 🟩 Configure environment variables in Cloud Run
-  - [x] 🟩 Test deployed endpoint (https://newsletter-processor-872179428244.us-central1.run.app)
+  - [x] 🟩 Test deployed endpoint
   - [x] 🟩 Set up Cloud Scheduler (every 6 hours, `newsletter-processor-trigger`)
 
 - [x] 🟩 **Step 21: Frontend Deployment**

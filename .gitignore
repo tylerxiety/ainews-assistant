@@ -44,7 +44,12 @@ node_modules/
 .yarn/
 dist/
 dist-ssr/
+dev-dist/
 *.local
+
+# Playwright
+playwright-report/
+test-results/
 
 # Supabase
 supabase/config.toml
@@ -63,3 +68,11 @@ temp/
 
 # poster
 poster_zh/
+
+
+# LLM
+.claude/settings.local.json
+
+# ruff
+.ruff_cache/
+

@@ -26,12 +26,12 @@ Set up Google Cloud Scheduler to automatically trigger the newsletter processing
 
 - [x] 🟩 **Step 3: Create Cloud Scheduler Job**
   - [x] 🟩 Enable Cloud Scheduler API in GCP project
-  - [x] 🟩 Create service account `scheduler-invoker@gen-lang-client-0104465868.iam.gserviceaccount.com`
+  - [x] 🟩 Create service account `scheduler-invoker@YOUR_PROJECT_ID.iam.gserviceaccount.com`
   - [x] 🟩 Grant Cloud Run Invoker role to the service account
   - [x] 🟩 Create scheduler job `newsletter-processor-trigger`:
     - Region: `us-central1`
     - Schedule: `0 */6 * * *` (every 6 hours at minute 0, UTC)
-    - Target: HTTP POST to `https://newsletter-processor-872179428244.us-central1.run.app/process-latest`
+    - Target: HTTP POST to `https://newsletter-processor-PROJECT_NUMBER.REGION.run.app/process-latest`
     - Auth: OIDC token with service account
 
 - [x] 🟩 **Step 4: Test and Verify**
@@ -61,39 +61,39 @@ For MVP, the current setup works for smaller newsletters. Large newsletters may 
 
 ```bash
 # 1. Enable Cloud Scheduler API
-gcloud services enable cloudscheduler.googleapis.com --project=gen-lang-client-0104465868
+gcloud services enable cloudscheduler.googleapis.com --project=YOUR_PROJECT_ID
 
 # 2. Create service account
 gcloud iam service-accounts create scheduler-invoker \
   --display-name="Cloud Scheduler Invoker" \
-  --project=gen-lang-client-0104465868
+  --project=YOUR_PROJECT_ID
 
 # 3. Grant Cloud Run invoker role
 gcloud run services add-iam-policy-binding newsletter-processor \
-  --member="serviceAccount:scheduler-invoker@gen-lang-client-0104465868.iam.gserviceaccount.com" \
+  --member="serviceAccount:scheduler-invoker@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/run.invoker" \
   --region=us-central1 \
-  --project=gen-lang-client-0104465868
+  --project=YOUR_PROJECT_ID
 
 # 4. Create the scheduler job
 gcloud scheduler jobs create http newsletter-processor-trigger \
   --location=us-central1 \
   --schedule="0 */6 * * *" \
-  --uri="https://newsletter-processor-872179428244.us-central1.run.app/process-latest" \
+  --uri="https://newsletter-processor-PROJECT_NUMBER.us-central1.run.app/process-latest" \
   --http-method=POST \
-  --oidc-service-account-email="scheduler-invoker@gen-lang-client-0104465868.iam.gserviceaccount.com" \
-  --oidc-token-audience="https://newsletter-processor-872179428244.us-central1.run.app" \
-  --project=gen-lang-client-0104465868
+  --oidc-service-account-email="scheduler-invoker@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+  --oidc-token-audience="https://newsletter-processor-PROJECT_NUMBER.us-central1.run.app" \
+  --project=YOUR_PROJECT_ID
 
 # 5. Manually trigger to test
 gcloud scheduler jobs run newsletter-processor-trigger \
   --location=us-central1 \
-  --project=gen-lang-client-0104465868
+  --project=YOUR_PROJECT_ID
 
 # 6. View scheduler job status
 gcloud scheduler jobs describe newsletter-processor-trigger \
   --location=us-central1 \
-  --project=gen-lang-client-0104465868
+  --project=YOUR_PROJECT_ID
 ```
 
 ## Endpoint Implementation (Completed)
