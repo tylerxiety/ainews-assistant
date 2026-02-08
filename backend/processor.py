@@ -5,6 +5,7 @@ import asyncio
 import io
 import json
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -359,6 +360,41 @@ class NewsletterProcessor:
         response.raise_for_status()
         return response.text
 
+    @staticmethod
+    def _normalize_extracted_text(text: str) -> str:
+        """
+        Normalize extracted HTML text while preserving natural word boundaries.
+
+        We extract with separator spaces and then tighten punctuation spacing so
+        anchor + trailing text does not collapse (e.g. "AIDiscord").
+        """
+        text = re.sub(r"\s+", " ", text).strip()
+        text = re.sub(r"\s+([,.;:!?%])", r"\1", text)
+        text = re.sub(r"([(\[{])\s+", r"\1", text)
+        text = re.sub(r"\s+([)\]}])", r"\1", text)
+        return text
+
+    @staticmethod
+    def _classify_root_section(header_text: str) -> str:
+        """Classify top-level h1 newsletter sections for section-aware processing."""
+        lowered = header_text.lower()
+        if "ai twitter recap" in lowered:
+            return "twitter"
+        if "ai reddit recap" in lowered:
+            return "reddit"
+        if "ai discord recap" in lowered:
+            return "discord_recap"
+        if "discord: high level" in lowered:
+            return "discord_high_level"
+        if "discord: detailed" in lowered:
+            return "discord_detailed"
+        return "other"
+
+    @staticmethod
+    def _fingerprint_for_dedup(text: str) -> str:
+        """Create a lightweight normalization fingerprint for duplicate detection."""
+        return re.sub(r"\W+", " ", text.lower()).strip()
+
     def _parse_newsletter(self, html_content: str, url: str) -> tuple[dict, list[dict]]:
         """
         Parse newsletter HTML into structured segments.
@@ -416,6 +452,8 @@ class NewsletterProcessor:
 
         segments_data = []
         order_index = 0
+        current_root_section = "other"
+        reddit_seen_fingerprints: set[str] = set()
         
         # 2. Iterate through elements to build segments
         # We want to segment by Headers (H1-H4)
@@ -456,8 +494,21 @@ class NewsletterProcessor:
                     continue
 
             # Get text content
-            text = element.get_text(strip=True)
+            text = self._normalize_extracted_text(element.get_text(" ", strip=True))
             if not text:
+                continue
+
+            # Track top-level section boundaries so we can apply targeted
+            # consolidation rules without affecting Twitter content.
+            if element.name == "h1":
+                current_root_section = self._classify_root_section(text)
+
+            # Discord consolidation: keep only AI Discord Recap and skip
+            # Discord high-level + detailed sections when configured.
+            if (
+                Config.DISCORD_CONSOLIDATION_MODE == "recap_only"
+                and current_root_section in {"discord_high_level", "discord_detailed"}
+            ):
                 continue
 
             # Skip elements that are likely menus or footers based on class/id
@@ -475,16 +526,29 @@ class NewsletterProcessor:
                 is_header_like = False
                 if element.name == "p":
                     strong = element.find("strong")
-                    if strong and strong.get_text(strip=True) == text:
+                    strong_text = (
+                        self._normalize_extracted_text(strong.get_text(" ", strip=True))
+                        if strong
+                        else ""
+                    )
+                    if strong and strong_text == text:
                         is_header_like = True
                 
                 if is_header_like:
                     add_segment(text, "topic_header")
                 else:
+                    # Lightweight Reddit dedup to reduce repeated bullets while
+                    # preserving original Reddit section structure.
+                    if Config.REDDIT_LIGHT_DEDUP and current_root_section == "reddit":
+                        fingerprint = self._fingerprint_for_dedup(text)
+                        if fingerprint in reddit_seen_fingerprints:
+                            continue
+                        reddit_seen_fingerprints.add(fingerprint)
+
                     # It's content
                     # Extract links
                     links = [
-                        {"text": a.get_text(strip=True), "url": a.get("href")}
+                        {"text": self._normalize_extracted_text(a.get_text(" ", strip=True)), "url": a.get("href")}
                         for a in element.find_all("a")
                         if a.get("href")
                     ]
@@ -496,7 +560,7 @@ class NewsletterProcessor:
 
         # 3. Fallback: If no segments found (e.g. text directly in div), grab all text
         if not segments_data:
-            text = article.get_text(strip=True)
+            text = self._normalize_extracted_text(article.get_text(" ", strip=True))
             if text:
                 add_segment(text[:100] + "...", "section_header") # Fake header
                 add_segment(text, "item")

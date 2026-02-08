@@ -53,8 +53,15 @@ backend:
     segmentBatchSize: 50
     # Enable Chinese translation + audio generation
     enableChineseProcessing: false
+    consolidation:
+      # Discord consolidation mode:
+      # - "off": keep all Discord sections
+      # - "recap_only": keep only "AI Discord Recap", skip high-level + detailed Discord sections
+      discordMode: "recap_only"
+      # Remove repeated Reddit items using lightweight text fingerprint dedup
+      redditLightDedup: true
     # RSS Feed URL for newsletter discovery
-    rssUrl: "https://news.smol.ai/rss.xml"
+    rssUrl: "https://www.latent.space/feed?section=ainews"
   
   ai:
     models:

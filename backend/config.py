@@ -52,6 +52,12 @@ class Config:
     HTTP_TIMEOUT: float = _processing.get("httpTimeoutSeconds", 30.0)
     SEGMENT_BATCH_SIZE: int = _processing.get("segmentBatchSize", 50)
     ENABLE_CHINESE_PROCESSING: bool = _processing.get("enableChineseProcessing", True)
+    _consolidation = _processing.get("consolidation", {})
+    _discord_mode_raw = _consolidation.get("discordMode", "off")
+    DISCORD_CONSOLIDATION_MODE: str = (
+        _discord_mode_raw if _discord_mode_raw in {"off", "recap_only"} else "off"
+    )
+    REDDIT_LIGHT_DEDUP: bool = _consolidation.get("redditLightDedup", False)
 
     # === AI MODELS (from config.yaml) ===
     _ai = _backend.get("ai", {})
