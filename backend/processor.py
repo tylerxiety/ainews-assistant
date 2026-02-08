@@ -518,7 +518,12 @@ class NewsletterProcessor:
                 continue
 
             if element.name in header_tags:
-                add_segment(text, "section_header")
+                # Only known recap sections (AI Twitter/Reddit/Discord Recap)
+                # become section dividers; all other headers are topic groups.
+                if element.name == "h1" and self._classify_root_section(text) != "other":
+                    add_segment(text, "section_header")
+                else:
+                    add_segment(text, "topic_header")
             
             elif element.name in content_tags:
                 # Heuristic: Check if it looks like a header (short, strong, no punctuation at end?)

@@ -99,7 +99,7 @@ export default function SegmentList({
                         ? group.label_zh
                         : group.label
 
-                    // Section headers are rendered as larger dividers with no items
+                    // Section headers are rendered as larger dividers
                     if (group.is_section_header) {
                         return (
                             <div
@@ -109,6 +109,26 @@ export default function SegmentList({
                                 onClick={() => onSegmentClick(groupIndex, 0)}
                             >
                                 {groupLabel && <h2 className="section-title">{groupLabel}</h2>}
+                                {group.segments.length > 0 && (
+                                    <div className="group-items">
+                                        {group.segments.map((segment, segmentIndex) => {
+                                            const displayContent = language === 'zh' && segment.content_raw_zh
+                                                ? segment.content_raw_zh
+                                                : segment.content_raw
+                                            return (
+                                                <div
+                                                    key={segment.id}
+                                                    id={`segment-${segment.id}`}
+                                                    className="segment group-item"
+                                                >
+                                                    <div className="segment-content">
+                                                        {renderContentWithLinks(displayContent, segment.links)}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )
                     }
