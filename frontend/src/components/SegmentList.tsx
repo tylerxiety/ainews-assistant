@@ -111,7 +111,7 @@ export default function SegmentList({
                                 {groupLabel && <h2 className="section-title">{groupLabel}</h2>}
                                 {group.segments.length > 0 && (
                                     <div className="group-items">
-                                        {group.segments.map((segment, segmentIndex) => {
+                                        {group.segments.map((segment) => {
                                             const displayContent = language === 'zh' && segment.content_raw_zh
                                                 ? segment.content_raw_zh
                                                 : segment.content_raw
