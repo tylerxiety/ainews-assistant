@@ -69,9 +69,29 @@ temp/
 # poster
 poster_zh/
 
+# Manual deploy scripts
+backend/deploy.sh
+
 
 # LLM
 .claude/settings.local.json
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.claude
+
+.agent/**
+!.agent/.gitkeep
+
+.gemini/**
+!.gemini/.gitkeep
+
+
+# scripts
+scripts/
+
+# Dev docs
+docs/
 
 # ruff
 .ruff_cache/
