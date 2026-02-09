@@ -14,6 +14,9 @@ import rawConfig from '../../config.yaml'
 // Type definitions for the config
 interface FrontendConfig {
     playbackStateExpirationMs: number
+    audioBar?: {
+        showMicButton?: boolean
+    }
     qa: {
         resumeDelayMs: number
         maxRecordingDurationMs: number
@@ -45,6 +48,10 @@ const config = rawConfig as unknown as Config
 export const CONFIG = {
     /** State persistence expiration in ms (24 hours) */
     playbackStateExpirationMs: config.frontend.playbackStateExpirationMs,
+    audioBar: {
+        /** Whether to show the manual Q&A mic button in the audio bar */
+        showMicButton: config.frontend.audioBar?.showMicButton ?? true,
+    },
     qa: {
         /** Delay in ms before resuming newsletter after Q&A answer ends */
         resumeDelayMs: config.frontend.qa.resumeDelayMs,

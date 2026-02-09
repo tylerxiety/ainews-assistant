@@ -1,5 +1,6 @@
 import { Play, Pause, Mic, MessageSquareText, List, AudioWaveform } from 'lucide-react'
 import { useLanguage } from '../i18n'
+import { CONFIG } from '../config'
 import './AudioBar.css'
 
 interface AudioBarProps {
@@ -102,13 +103,15 @@ export default function AudioBar({
                 </div>
 
                 <div className="controls-right">
-                    <button
-                        className={`control-btn mic-btn ${isRecording ? 'listening' : ''}`}
-                        onClick={onMicClick}
-                        title={t('audioBar.askQuestion')}
-                    >
-                        <Mic size={20} />
-                    </button>
+                    {CONFIG.audioBar.showMicButton && (
+                        <button
+                            className={`control-btn mic-btn ${isRecording ? 'listening' : ''}`}
+                            onClick={onMicClick}
+                            title={t('audioBar.askQuestion')}
+                        >
+                            <Mic size={20} />
+                        </button>
+                    )}
 
                     <button
                         className="control-btn qa-btn"

@@ -18,6 +18,9 @@
 frontend:
   # State persistence expiration in ms (24 hours)
   playbackStateExpirationMs: 86400000
+  audioBar:
+    # Show or hide manual Q&A mic button in the audio bar (demo mode can set false)
+    showMicButton: false
   qa:
     # Delay in ms before resuming newsletter after Q&A answer ends
     resumeDelayMs: 1500
