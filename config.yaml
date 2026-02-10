@@ -42,6 +42,8 @@ voiceMode:
     minSpeechFrames: 4
   # Delay before resuming newsletter after voice Q&A
   resumeDelayMs: 1200
+  # Buffer output at start of each turn to catch commands before audio leaks
+  bufferGracePeriodMs: 300
 
 # =============================================================================
 # BACKEND

@@ -267,6 +267,9 @@ class VoiceSession:
         self._suppress_output = False
         self._last_command_text: str | None = None
         self._last_command_time = 0.0
+        self._turn_output_started = False
+        self._output_buffer: list[tuple[str, bytes | str]] = []
+        self._flush_task: asyncio.Task | None = None
 
     async def _open_session(self) -> AsyncSession:
         config_kwargs: dict[str, Any] = {
@@ -331,6 +334,43 @@ class VoiceSession:
                 }
             )
         )
+
+    async def _buffer_or_send(
+        self, websocket: WebSocket, msg_type: str, data: bytes | str
+    ) -> None:
+        """Buffer output at turn start, or send directly once buffer window has passed."""
+        if self._turn_output_started:
+            if msg_type == "bytes":
+                await websocket.send_bytes(data)
+            else:
+                await websocket.send_text(data)
+            return
+        self._output_buffer.append((msg_type, data))
+        if self._flush_task is None:
+            self._flush_task = asyncio.create_task(
+                self._flush_after_delay(websocket)
+            )
+
+    async def _flush_after_delay(self, websocket: WebSocket) -> None:
+        """Wait grace period then flush buffered output."""
+        await asyncio.sleep(Config.VOICE_BUFFER_GRACE_MS / 1000)
+        if not self._suppress_output and self._output_buffer:
+            self._turn_output_started = True
+            for msg_type, data in self._output_buffer:
+                if msg_type == "bytes":
+                    await websocket.send_bytes(data)
+                else:
+                    await websocket.send_text(data)
+            self._output_buffer.clear()
+        self._flush_task = None
+
+    def _discard_output_buffer(self) -> None:
+        """Discard buffered output when a command is detected."""
+        self._output_buffer.clear()
+        self._turn_output_started = False
+        if self._flush_task and not self._flush_task.done():
+            self._flush_task.cancel()
+        self._flush_task = None
 
     async def _forward_gemini(self, websocket: WebSocket) -> None:
         while not self._stop_event.is_set():
@@ -405,6 +445,7 @@ class VoiceSession:
                 self._last_command_text = call.name
                 self._last_command_time = now
                 self._suppress_output = True
+                self._discard_output_buffer()
                 await self._emit_tool_call(
                     websocket, call.name, getattr(call, "args", {}) or {}
                 )
@@ -426,6 +467,7 @@ class VoiceSession:
                             self._last_command_text = command
                             self._last_command_time = now
                             self._suppress_output = True
+                            self._discard_output_buffer()
                             await self._emit_tool_call(websocket, command, args)
 
             output_transcription = getattr(server_content, "output_transcription", None)
@@ -434,23 +476,28 @@ class VoiceSession:
                 and output_transcription
                 and getattr(output_transcription, "text", None)
             ):
-                await websocket.send_text(
+                await self._buffer_or_send(
+                    websocket,
+                    "text",
                     json.dumps(
                         {
                             "type": "transcript",
                             "text": output_transcription.text,
                         }
-                    )
+                    ),
                 )
-            if self._suppress_output and (
+            turn_ended = (
                 getattr(server_content, "turn_complete", False)
                 or getattr(server_content, "generation_complete", False)
                 or getattr(server_content, "waiting_for_input", False)
-            ):
-                self._suppress_output = False
+            )
+            if turn_ended:
+                if self._suppress_output:
+                    self._suppress_output = False
+                self._discard_output_buffer()
 
         if not self._suppress_output and getattr(message, "data", None):
-            await websocket.send_bytes(message.data)
+            await self._buffer_or_send(websocket, "bytes", message.data)
         elif (
             not self._suppress_output
             and server_content
@@ -460,16 +507,18 @@ class VoiceSession:
             for part in parts:
                 inline_data = getattr(part, "inline_data", None)
                 if inline_data and getattr(inline_data, "data", None):
-                    await websocket.send_bytes(inline_data.data)
+                    await self._buffer_or_send(websocket, "bytes", inline_data.data)
 
         if not self._suppress_output and getattr(message, "text", None):
-            await websocket.send_text(
+            await self._buffer_or_send(
+                websocket,
+                "text",
                 json.dumps(
                     {
                         "type": "text",
                         "text": message.text,
                     }
-                )
+                ),
             )
 
     async def enqueue_audio(self, chunk: bytes) -> None:

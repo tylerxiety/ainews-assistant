@@ -95,6 +95,7 @@ class Config:
     VOICE_MODE_VAD_NEGATIVE: float = _voice_vad.get("negativeSpeechThreshold", 0.3)
     VOICE_MODE_VAD_MIN_FRAMES: int = _voice_vad.get("minSpeechFrames", 4)
     VOICE_MODE_RESUME_DELAY_MS: int = _voice_mode.get("resumeDelayMs", 1200)
+    VOICE_BUFFER_GRACE_MS: int = _voice_mode.get("bufferGracePeriodMs", 300)
 
 
 class Prompts:
