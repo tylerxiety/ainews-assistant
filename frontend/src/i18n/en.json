@@ -102,6 +102,11 @@
       "The last number is your List ID"
     ]
   },
+  "segmentList": {
+    "noSegments": "No audio segments available.",
+    "bookmarked": "Bookmarked",
+    "bookmarkToClickUp": "Bookmark to ClickUp"
+  },
   "dates": {
     "locale": "en-US",
     "format": {

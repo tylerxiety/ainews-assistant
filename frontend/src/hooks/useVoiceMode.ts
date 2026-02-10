@@ -366,15 +366,13 @@ export function useVoiceMode(options: UseVoiceModeOptions): VoiceModeState {
     if (!isVoiceModeActive) return
 
     const timeoutId = window.setTimeout(() => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close()
-      }
+      stopVoiceMode()
     }, CONFIG.voiceMode.sessionTimeoutMs)
 
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [isVoiceModeActive])
+  }, [isVoiceModeActive, stopVoiceMode])
 
   useEffect(() => {
     if (!isVoiceModeActive) return

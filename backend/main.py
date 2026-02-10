@@ -7,6 +7,8 @@ import json
 import logging
 import os
 import uuid
+from contextlib import asynccontextmanager
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, WebSocket
@@ -21,27 +23,24 @@ load_dotenv()
 from processor import NewsletterProcessor
 from voice_session import VoiceSession
 
-app = FastAPI(title="Newsletter Audio Processor")
-
 # Logger will be configured at startup
 logger = logging.getLogger(__name__)
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Configure logging on startup to avoid conflicts with Uvicorn."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage startup and shutdown lifecycle."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     logger.info("Newsletter Audio Processor starting up")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup resources on shutdown."""
+    yield
     await processor.close()
     logger.info("Newsletter Audio Processor shutting down")
+
+
+app = FastAPI(title="Newsletter Audio Processor", lifespan=lifespan)
 
 # CORS middleware for frontend access
 from config import Config
@@ -108,7 +107,7 @@ async def _fetch_issue_context(issue_id: str, language: str = "en") -> str:
 
 
 @app.websocket("/ws/voice/{issue_id}")
-async def voice_mode_ws(websocket: WebSocket, issue_id: str, language: str = "en"):
+async def voice_mode_ws(websocket: WebSocket, issue_id: str, language: Literal["en", "zh"] = "en"):
     # Validate UUID format before proceeding
     try:
         uuid.UUID(issue_id)
@@ -150,7 +149,7 @@ async def voice_mode_ws(websocket: WebSocket, issue_id: str, language: str = "en
 async def ask_question_audio(
     audio: UploadFile = File(...),
     issue_id: str = Form(...),
-    language: str = Form("en")
+    language: Literal["en", "zh"] = Form("en")
 ):
     """
     Ask a question about the entire newsletter issue using audio input.
@@ -161,6 +160,12 @@ async def ask_question_audio(
         issue_id: UUID of the issue
         language: Language code for response (en or zh)
     """
+    # Validate UUID format
+    try:
+        uuid.UUID(issue_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid issue_id format") from None
+
     try:
         answer_text, audio_url, transcript = await processor.ask_with_audio(
             audio,
@@ -173,6 +178,9 @@ async def ask_question_audio(
             "audio_url": audio_url,
             "transcript": transcript
         }
+    except ValueError as e:
+        logger.warning(f"Bad request in ask_question_audio: {e}")
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except Exception as e:
         logger.error(f"Error in ask_question_audio: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error") from None

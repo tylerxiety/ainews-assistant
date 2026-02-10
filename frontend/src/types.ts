@@ -4,8 +4,7 @@ export interface Issue {
     published_at: string
     url?: string
     summary?: string
-    // Allow for other fields from DB
-    [key: string]: any
+    processed_at?: string
 }
 
 export interface SegmentLink {
@@ -26,8 +25,6 @@ export interface Segment {
     audio_url_zh?: string
     audio_duration_ms_zh?: number
     segment_type: 'section_header' | 'item' | 'topic_header'
-    // Allow for other fields from DB
-    [key: string]: any
 }
 
 export interface TopicGroup {
@@ -51,7 +48,6 @@ export interface Bookmark {
     segment_id: string
     clickup_task_id: string
     created_at?: string
-    [key: string]: any
 }
 
 export interface ClickUpSettings {

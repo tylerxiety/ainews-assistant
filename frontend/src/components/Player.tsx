@@ -61,6 +61,7 @@ export default function Player() {
   const [bookmarkError, setBookmarkError] = useState<string | null>(null)
 
   // Audio state
+  const mountedRef = useRef(true)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const shouldAutoPlayRef = useRef(false)
   const hasInteractedRef = useRef(false) // Track if user has interacted (to skip initial scroll)
@@ -78,19 +79,13 @@ export default function Player() {
   const { restoredState, clearState } = usePlaybackState(issueId, currentGroupIndex, currentSegmentIndex)
 
   useEffect(() => {
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useEffect(() => {
     currentGroupIndexRef.current = currentGroupIndex
     currentSegmentIndexRef.current = currentSegmentIndex
   }, [currentGroupIndex, currentSegmentIndex])
-
-  // Handle audio recording completion
-  useEffect(() => {
-    // If we stopped recording and have an audio blob, send it
-    if (!isRecording && audioBlob && audioBlob !== processedAudioRef.current && !recorderError) {
-      handleAskQuestionWithAudio(audioBlob)
-      processedAudioRef.current = audioBlob
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleAskQuestionWithAudio intentionally omitted; processedAudioRef prevents double-fire
-  }, [isRecording, audioBlob, recorderError])
 
   const handleMicClick = () => {
     if (isVoiceModeActive) {
@@ -396,7 +391,29 @@ export default function Player() {
     }
   }
 
-  const handleAskQuestionWithAudio = async (audioBlob: Blob) => {
+  const handlePlay = useCallback(() => {
+    if (audioRef.current) {
+      hasInteractedRef.current = true
+      shouldAutoPlayRef.current = true
+      const playPromise = audioRef.current.play()
+
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          if (import.meta.env.DEV) {
+            console.error("Play failed:", err)
+          }
+          if (err.name !== 'AbortError') {
+            // Don't show error immediately, user might just need to interact
+            // setError(`Playback failed: ${err.message}`)
+          }
+          setIsPlaying(false)
+        })
+      }
+      setIsPlaying(true)
+    }
+  }, [])
+
+  const handleAskQuestionWithAudio = useCallback(async (audioBlob: Blob) => {
     if (!issueId || !groups[currentGroupIndex]) return
 
     // Add user message (placeholder while transcribing)
@@ -478,36 +495,53 @@ export default function Player() {
     } finally {
       setIsLoadingAnswer(false)
     }
-  }
+  }, [issueId, groups, currentGroupIndex, language, t, handlePlay])
+
+  // Handle audio recording completion
+  useEffect(() => {
+    if (!isRecording && audioBlob && audioBlob !== processedAudioRef.current && !recorderError) {
+      handleAskQuestionWithAudio(audioBlob)
+      processedAudioRef.current = audioBlob
+    }
+  }, [isRecording, audioBlob, recorderError, handleAskQuestionWithAudio])
 
   // Play QA audio when URL changes
   useEffect(() => {
-    if (qaAudioUrl && audioRef.current) {
-      // Save newsletter state
-      savedNewsletterPositionRef.current = audioRef.current.currentTime
-      savedNewsletterDurationRef.current = duration
-      savedNewsletterSrcRef.current = audioRef.current.src
+    if (!qaAudioUrl || !audioRef.current) return
 
-      // Pause newsletter (just in case)
-      audioRef.current.pause()
+    // Save newsletter state
+    savedNewsletterPositionRef.current = audioRef.current.currentTime
+    savedNewsletterDurationRef.current = duration
+    savedNewsletterSrcRef.current = audioRef.current.src
 
-      // Switch to Q&A audio
-      setIsPlayingQaAudio(true)
-      isPlayingQaAudioRef.current = true
-      setQaPlaybackFailed(false)
-      audioRef.current.src = qaAudioUrl
+    // Pause newsletter (just in case)
+    audioRef.current.pause()
 
-      const playPromise = audioRef.current.play()
-      if (playPromise) {
-        playPromise.catch((e) => {
-          if (import.meta.env.DEV) {
-            console.error("QA Playback failed:", e)
-          }
-          setQaPlaybackFailed(true)
-        })
-      }
+    // Switch to Q&A audio
+    setIsPlayingQaAudio(true)
+    isPlayingQaAudioRef.current = true
+    setQaPlaybackFailed(false)
+    audioRef.current.src = qaAudioUrl
+
+    const playPromise = audioRef.current.play()
+    if (playPromise) {
+      playPromise.catch((e) => {
+        if (import.meta.env.DEV) {
+          console.error("QA Playback failed:", e)
+        }
+        setQaPlaybackFailed(true)
+      })
     }
-  }, [qaAudioUrl])
+
+    return () => {
+      // Stop QA playback if URL changes or component unmounts
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+      setIsPlayingQaAudio(false)
+      isPlayingQaAudioRef.current = false
+    }
+  }, [qaAudioUrl]) // eslint-disable-line react-hooks/exhaustive-deps -- duration is captured at save time, not reactive
 
   const handlePlayQaManually = () => {
     if (audioRef.current && qaAudioUrl) {
@@ -799,28 +833,6 @@ export default function Player() {
     }
   }
 
-  const handlePlay = () => {
-    if (audioRef.current) {
-      hasInteractedRef.current = true
-      shouldAutoPlayRef.current = true
-      const playPromise = audioRef.current.play()
-
-      if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          if (import.meta.env.DEV) {
-            console.error("Play failed:", err)
-          }
-          if (err.name !== 'AbortError') {
-            // Don't show error immediately, user might just need to interact
-            // setError(`Playback failed: ${err.message}`)
-          }
-          setIsPlaying(false)
-        })
-      }
-      setIsPlaying(true)
-    }
-  }
-
   const handlePause = () => {
     if (audioRef.current) {
       shouldAutoPlayRef.current = false
@@ -849,6 +861,7 @@ export default function Player() {
 
       // Delay before resuming
       setTimeout(() => {
+        if (!mountedRef.current) return
         if (audioRef.current && savedNewsletterSrcRef.current) {
           audioRef.current.src = savedNewsletterSrcRef.current
           audioRef.current.currentTime = savedNewsletterPositionRef.current

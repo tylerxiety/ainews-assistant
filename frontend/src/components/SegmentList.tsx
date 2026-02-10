@@ -1,5 +1,6 @@
 import React from 'react'
 import { TopicGroup, Segment } from '../types'
+import { useLanguage } from '../i18n'
 import { Pin, Check, Loader2 } from 'lucide-react'
 import './SegmentList.css'
 
@@ -24,6 +25,8 @@ export default function SegmentList({
     onBookmark,
     language
 }: SegmentListProps) {
+    const { t } = useLanguage()
+
     // Helper to render content with inline links
     const renderContentWithLinks = (content: string, links: Segment['links']) => {
         if (!links || links.length === 0) return <p>{content}</p>
@@ -92,7 +95,7 @@ export default function SegmentList({
     return (
         <div className="segments-list">
             {groups.length === 0 ? (
-                <p className="no-segments">No audio segments available.</p>
+                <p className="no-segments">{t('segmentList.noSegments')}</p>
             ) : (
                 groups.map((group, groupIndex) => {
                     const groupLabel = language === 'zh' && group.label_zh
@@ -167,7 +170,7 @@ export default function SegmentList({
                                                     onPointerDown={(e) => e.stopPropagation()}
                                                     onClick={(e) => onBookmark(e, segment)}
                                                     disabled={bookmarkingSegment === segment.id || bookmarkedSegments.has(segment.id)}
-                                                    title={bookmarkedSegments.has(segment.id) ? 'Bookmarked' : 'Bookmark to ClickUp'}
+                                                    title={bookmarkedSegments.has(segment.id) ? t('segmentList.bookmarked') : t('segmentList.bookmarkToClickUp')}
                                                 >
                                                     {bookmarkingSegment === segment.id ? (
                                                         <Loader2 className="animate-spin" size={18} />

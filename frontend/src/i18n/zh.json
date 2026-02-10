@@ -102,6 +102,11 @@
       "最后的数字就是列表 ID"
     ]
   },
+  "segmentList": {
+    "noSegments": "暂无音频片段。",
+    "bookmarked": "已收藏",
+    "bookmarkToClickUp": "收藏到 ClickUp"
+  },
   "dates": {
     "locale": "zh-CN",
     "format": {

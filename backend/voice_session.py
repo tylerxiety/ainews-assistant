@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import WebSocket
 from google import genai
 from google.genai import types
+from google.genai.live import AsyncSession
 
 from config import Config, Prompts
 
@@ -94,17 +95,27 @@ def _normalize_command_text(text: str) -> list[str]:
     # Remove punctuation but keep Chinese characters and alphanumeric
     cleaned = re.sub(r"[^\w\u4e00-\u9fff\s]", " ", text_lower)
 
-    # For Chinese text, remove prefix filler words from the beginning
-    for filler in sorted(FILLER_WORDS_ZH_PREFIX, key=len, reverse=True):
-        if cleaned.startswith(filler):
-            cleaned = cleaned[len(filler):]
-            break
+    # For Chinese text, iteratively remove prefix filler words from the beginning
+    sorted_prefixes = sorted(FILLER_WORDS_ZH_PREFIX, key=len, reverse=True)
+    changed = True
+    while changed:
+        changed = False
+        for filler in sorted_prefixes:
+            if cleaned.startswith(filler):
+                cleaned = cleaned[len(filler):]
+                changed = True
+                break
 
-    # Remove suffix filler words from the end
-    for filler in sorted(FILLER_WORDS_ZH_SUFFIX, key=len, reverse=True):
-        if cleaned.endswith(filler):
-            cleaned = cleaned[:-len(filler)]
-            break
+    # Iteratively remove suffix filler words from the end
+    sorted_suffixes = sorted(FILLER_WORDS_ZH_SUFFIX, key=len, reverse=True)
+    changed = True
+    while changed:
+        changed = False
+        for filler in sorted_suffixes:
+            if cleaned.endswith(filler):
+                cleaned = cleaned[:-len(filler)]
+                changed = True
+                break
 
     tokens = [token for token in cleaned.split() if token]
     # Remove leading English filler words
@@ -247,8 +258,8 @@ class VoiceSession:
             project=Config.GCP_PROJECT_ID,
             location=Config.VOICE_MODE_REGION,
         )
-        self._session: Any | None = None
-        self._session_cm: Any | None = None
+        self._session: AsyncSession | None = None
+        self._session_cm: AsyncSession | None = None
         self._session_lock = asyncio.Lock()
         self._stop_event = asyncio.Event()
         self._audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=80)
@@ -257,7 +268,7 @@ class VoiceSession:
         self._last_command_text: str | None = None
         self._last_command_time = 0.0
 
-    async def _open_session(self) -> Any:
+    async def _open_session(self) -> AsyncSession:
         config_kwargs: dict[str, Any] = {
             "response_modalities": ["AUDIO"],
             "system_instruction": build_system_prompt(self.context, self.language),
@@ -279,7 +290,7 @@ class VoiceSession:
         logger.info("Gemini Live session started for issue %s", self.issue_id)
         return self._session
 
-    async def _ensure_session(self) -> Any:
+    async def _ensure_session(self) -> AsyncSession:
         async with self._session_lock:
             if self._session is None:
                 await self._open_session()
