@@ -366,13 +366,17 @@ export function useVoiceMode(options: UseVoiceModeOptions): VoiceModeState {
     if (!isVoiceModeActive) return
 
     const timeoutId = window.setTimeout(() => {
-      stopVoiceMode()
+      // Refresh Live session before provider TTL; onclose handles reconnect/resume.
+      const ws = wsRef.current
+      if (ws && ws.readyState !== WebSocket.CLOSING && ws.readyState !== WebSocket.CLOSED) {
+        ws.close()
+      }
     }, CONFIG.voiceMode.sessionTimeoutMs)
 
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [isVoiceModeActive, stopVoiceMode])
+  }, [isVoiceModeActive])
 
   useEffect(() => {
     if (!isVoiceModeActive) return
