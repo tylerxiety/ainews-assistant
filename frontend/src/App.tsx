@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import IssueList from './components/IssueList'
 import Player from './components/Player'
 import Settings from './components/Settings'
@@ -22,6 +23,7 @@ function App() {
           </ErrorBoundary>
         </div>
       </BrowserRouter>
+      <Analytics />
     </LanguageProvider>
   )
 }
