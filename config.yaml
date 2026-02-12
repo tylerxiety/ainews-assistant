@@ -21,6 +21,8 @@ frontend:
   audioBar:
     # Show or hide manual Q&A mic button in the audio bar (demo mode can set false)
     showMicButton: false
+  # Audio gain boost for loudspeaker playback (1.0 = no boost, 2.0 = 2x volume)
+  audioGainBoost: 2.0
   qa:
     # Delay in ms before resuming newsletter after Q&A answer ends
     resumeDelayMs: 1500
@@ -98,9 +100,8 @@ prompts:
     1. Replace "@username" with "[username] tweeted"
     2. Replace "/r/subreddit" with "the [subreddit] subreddit"
     3. For markdown links [text](url), keep only the text
-    4. If a text seems to be a header, keep it conversational (e.g. prefix with "Now:")
-    5. Keep natural
-    6. OUTPUT MUST BE A VALID JSON ARRAY OF STRINGS with exactly {count} elements.
+    4. Keep natural and conversational
+    5. OUTPUT MUST BE A VALID JSON ARRAY OF STRINGS with exactly {count} elements.
 
     <texts_to_clean>
     {texts_json}

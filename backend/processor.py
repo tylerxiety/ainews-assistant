@@ -135,6 +135,7 @@ class NewsletterProcessor:
                         # Clean and translate the label
                         cleaned_labels = await self._clean_texts_batch([group["label"]])
                         label_text_en = cleaned_labels[0] if cleaned_labels else group["label"]
+                        label_text_en = f"Now: {label_text_en}"
                         if Config.ENABLE_CHINESE_PROCESSING:
                             translated_labels = await self._translate_texts_batch([group["label"]])
                             group["label_zh"] = translated_labels[0] if translated_labels else None
@@ -145,7 +146,7 @@ class NewsletterProcessor:
                         label_text_zh = None
                         if Config.ENABLE_CHINESE_PROCESSING and group["label_zh"]:
                             cleaned_zh = await self._clean_texts_batch([group["label_zh"]])
-                            label_text_zh = cleaned_zh[0] if cleaned_zh else None
+                            label_text_zh = f"现在。{cleaned_zh[0]}" if cleaned_zh else None
 
                         # Generate English audio for section header
                         audio_url, duration_ms = await self._generate_audio(
@@ -214,8 +215,8 @@ class NewsletterProcessor:
 
                 # 5. Assign cleaned text and generate audio per segment
                 idx_offset = 1 if group["label"] else 0
-                label_text_en = cleaned_texts[0] if group["label"] else ""
-                label_text_zh = cleaned_zh_texts[0] if group["label"] and cleaned_zh_texts[0] else ""
+                label_text_en = f"Now: {cleaned_texts[0]}" if group["label"] else ""
+                label_text_zh = f"现在。{cleaned_zh_texts[0]}" if group["label"] and cleaned_zh_texts[0] else ""
 
                 # Store translated label for group
                 group["label_zh"] = translated_texts[0] if (Config.ENABLE_CHINESE_PROCESSING and group["label"]) else None

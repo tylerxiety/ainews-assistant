@@ -74,12 +74,36 @@ export default function Player() {
   const currentGroupIndexRef = useRef(currentGroupIndex)
   const currentSegmentIndexRef = useRef(currentSegmentIndex)
   const prevLanguageRef = useRef(language)
+  const gainNodeRef = useRef<GainNode | null>(null)
+  const gainContextRef = useRef<AudioContext | null>(null)
+  const lastNavDirectionRef = useRef<'forward' | 'backward'>('forward')
 
   // Playback State Persistence
   const { restoredState, clearState } = usePlaybackState(issueId, currentGroupIndex, currentSegmentIndex)
 
   useEffect(() => {
     return () => { mountedRef.current = false }
+  }, [])
+
+  // Set up Web Audio API gain boost for loudspeaker playback (e.g., iOS)
+  // Created on mount but AudioContext starts suspended on iOS — resumed on first play gesture
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || gainNodeRef.current) return
+    const gain = CONFIG.audioGainBoost
+    if (gain <= 1.0) return
+
+    try {
+      const ctx = new AudioContext()
+      gainContextRef.current = ctx
+      const source = ctx.createMediaElementSource(audio)
+      const gainNode = ctx.createGain()
+      gainNode.gain.value = gain
+      source.connect(gainNode).connect(ctx.destination)
+      gainNodeRef.current = gainNode
+    } catch {
+      // createMediaElementSource can only be called once; ignore if already connected
+    }
   }, [])
 
   useEffect(() => {
@@ -272,6 +296,7 @@ export default function Player() {
     const segmentIndex = currentSegmentIndexRef.current
 
     hasInteractedRef.current = true
+    lastNavDirectionRef.current = 'forward'
 
     // Find next playable segment or section header
     for (let gi = groupIndex; gi < groups.length; gi++) {
@@ -306,6 +331,7 @@ export default function Player() {
     const segmentIndex = currentSegmentIndexRef.current
 
     hasInteractedRef.current = true
+    lastNavDirectionRef.current = 'backward'
 
     // Find previous playable segment or section header
     for (let gi = groupIndex; gi >= 0; gi--) {
@@ -351,11 +377,11 @@ export default function Player() {
         break
       case 'next':
       case 'next_segment':
-        goToNextSegment(wasPlayingBeforeVoiceRef.current)
+        goToNextSegment(true)
         break
       case 'previous':
       case 'previous_segment':
-        goToPreviousSegment(wasPlayingBeforeVoiceRef.current)
+        goToPreviousSegment(true)
         break
       case 'bookmark': {
         const currentGroup = groups[currentGroupIndex]
@@ -371,7 +397,7 @@ export default function Player() {
         if (audioRef.current) {
           audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - seconds)
         }
-        resumeNewsletterAfterVoice()
+        handlePlay()
         break
       }
       case 'forward': {
@@ -382,7 +408,7 @@ export default function Player() {
             audioRef.current.currentTime + seconds
           )
         }
-        resumeNewsletterAfterVoice()
+        handlePlay()
         break
       }
       default:
@@ -393,6 +419,10 @@ export default function Player() {
 
   const handlePlay = useCallback(() => {
     if (audioRef.current) {
+      // Resume gain AudioContext on first user gesture (iOS requires this)
+      if (gainContextRef.current?.state === 'suspended') {
+        gainContextRef.current.resume()
+      }
       hasInteractedRef.current = true
       shouldAutoPlayRef.current = true
       const playPromise = audioRef.current.play()
@@ -781,6 +811,15 @@ export default function Player() {
 
       return () => {
         audio.removeEventListener('canplay', handleCanPlay)
+      }
+    }
+
+    // Auto-advance past items with no audio (e.g., section headers missing audio)
+    if (!currentAudioUrl && shouldAutoPlayRef.current && groups.length > 0) {
+      if (lastNavDirectionRef.current === 'backward') {
+        goToPreviousSegment(true)
+      } else {
+        goToNextSegment(true)
       }
     }
   }, [currentAudioUrl, loading])

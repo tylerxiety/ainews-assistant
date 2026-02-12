@@ -37,6 +37,9 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Work around Workbox terser renderChunk early-exit on current Node/toolchain.
+        mode: 'development',
+        disableDevLogs: true,
         skipWaiting: true,
         clientsClaim: true,
         navigateFallback: '/index.html',

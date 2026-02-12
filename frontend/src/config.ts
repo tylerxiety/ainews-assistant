@@ -14,6 +14,7 @@ import rawConfig from '../../config.yaml'
 // Type definitions for the config
 interface FrontendConfig {
     playbackStateExpirationMs: number
+    audioGainBoost?: number
     audioBar?: {
         showMicButton?: boolean
     }
@@ -48,6 +49,8 @@ const config = rawConfig as unknown as Config
 export const CONFIG = {
     /** State persistence expiration in ms (24 hours) */
     playbackStateExpirationMs: config.frontend.playbackStateExpirationMs,
+    /** Audio gain boost for loudspeaker playback (1.0 = no boost) */
+    audioGainBoost: config.frontend.audioGainBoost ?? 1.0,
     audioBar: {
         /** Whether to show the manual Q&A mic button in the audio bar */
         showMicButton: config.frontend.audioBar?.showMicButton ?? true,

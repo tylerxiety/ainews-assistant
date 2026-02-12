@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint .",
+    "lint": "eslint src eslint.config.js",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:mobile-layout": "playwright test tests/mobile-layout-fit.spec.ts"
