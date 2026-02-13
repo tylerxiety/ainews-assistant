@@ -1,0 +1,79 @@
+name: Deploy Backend Dev to Cloud Run
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'backend/**'
+      - 'config.yaml'
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  SERVICE_NAME: newsletter-processor-dev
+  IMAGE_NAME: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/container-images/newsletter-processor-dev
+
+jobs:
+  deploy-backend-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker to use gcloud command-line tool as a credential helper
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Validate dev isolation secrets
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL_DEV }}" ]; then
+            echo "Missing required secret: SUPABASE_URL_DEV"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SUPABASE_SERVICE_KEY_DEV }}" ]; then
+            echo "Missing required secret: SUPABASE_SERVICE_KEY_DEV"
+            exit 1
+          fi
+          if [ -z "${{ secrets.GCS_BUCKET_NAME_DEV }}" ]; then
+            echo "Missing required secret: GCS_BUCKET_NAME_DEV"
+            exit 1
+          fi
+
+      - name: Build Docker Image
+        run: |
+          # Copy config.yaml to backend directory so it's in the build context
+          cp config.yaml backend/
+          cd backend
+          docker build -t $IMAGE_NAME .
+
+      - name: Push Docker Image
+        run: docker push $IMAGE_NAME
+
+      - name: Deploy to Cloud Run (dev service)
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --image $IMAGE_NAME \
+            --platform managed \
+            --region $REGION \
+            --allow-unauthenticated \
+            --service-account ${{ secrets.GCP_SA_EMAIL }} \
+            --set-env-vars "\
+          ENVIRONMENT=development,\
+          SUPABASE_URL=${{ secrets.SUPABASE_URL_DEV }},\
+          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY_DEV }},\
+          GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},\
+          GCP_REGION=us-central1,\
+          GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME_DEV }},\
+          ALLOWED_ORIGINS=https://ainews-assistant-git-dev-tylerxiety.vercel.app,http://localhost:5173" \
+            --timeout 3600 \
+            --memory 2Gi \
+            --cpu 1
