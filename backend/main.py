@@ -11,11 +11,10 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, WebSocket
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, HttpUrl
 
 # Load environment variables
 load_dotenv()
@@ -61,9 +60,6 @@ processor = NewsletterProcessor(
     gcs_bucket_name=Config.GCS_BUCKET_NAME,
 )
 
-
-class ProcessRequest(BaseModel):
-    url: HttpUrl
 
 
 @app.get("/health")
@@ -186,41 +182,6 @@ async def ask_question_audio(
         raise HTTPException(status_code=500, detail="Internal Server Error") from None
 
 
-@app.post("/process")
-async def process_newsletter(request: ProcessRequest, background_tasks: BackgroundTasks):
-    """
-    Process a newsletter issue: fetch, parse, clean text, generate audio.
-    Processing happens in the background to avoid request timeouts.
-
-    Args:
-        request: ProcessRequest with newsletter URL
-        background_tasks: FastAPI BackgroundTasks
-
-    Returns:
-        dict: Processing status and issue_id
-    """
-    try:
-        # Generate issue ID upfront
-        issue_id = str(uuid.uuid4())
-
-        # Process newsletter in background to avoid timeouts
-        background_tasks.add_task(
-            processor.process_newsletter,
-            str(request.url),
-            issue_id
-        )
-
-        return {
-            "status": "processing",
-            "issue_id": issue_id,
-            "message": "Newsletter processing started in background"
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error processing newsletter: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error") from None
-
 
 @app.post("/process-latest")
 async def process_latest_newsletter(force: bool = False):
@@ -241,16 +202,18 @@ async def process_latest_newsletter(force: bool = False):
               'completed' if new issue found and processed, or 'no_new_issue' if RSS fetch failed
     """
     try:
-        # Step 1: Discover latest newsletter URL from RSS
-        latest_url = await processor.fetch_latest_newsletter_url()
-        
-        if not latest_url:
-            logger.warning("No newsletter URL found in RSS feed")
+        # Step 1: Discover latest newsletter URL and content from RSS
+        result = await processor.fetch_latest_newsletter()
+
+        if not result:
+            logger.warning("No newsletter found in RSS feed")
             return {
                 "status": "no_new_issue",
-                "message": "Could not fetch latest newsletter URL from RSS feed"
+                "message": "Could not fetch latest newsletter from RSS feed"
             }
-        
+
+        latest_url, html_content = result
+
         # Step 2: Check if already processed
         if not force and processor.check_issue_exists(latest_url):
             logger.info(f"Newsletter already processed: {latest_url}")
@@ -259,13 +222,13 @@ async def process_latest_newsletter(force: bool = False):
                 "url": latest_url,
                 "message": "Newsletter already processed"
             }
-        
+
         # Step 3: Process new newsletter synchronously
         issue_id = str(uuid.uuid4())
         logger.info(f"New newsletter found, starting processing: {latest_url}")
-        
+
         # Wait for processing to complete
-        await processor.process_newsletter(latest_url, issue_id)
+        await processor.process_newsletter(latest_url, html_content, issue_id)
 
         return {
             "status": "completed",

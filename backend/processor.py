@@ -70,12 +70,13 @@ class NewsletterProcessor:
         """Close resources."""
         await self.http_client.aclose()
 
-    async def process_newsletter(self, url: str, issue_id: str | None = None, max_groups: int | None = None) -> str:
+    async def process_newsletter(self, url: str, html_content: str, issue_id: str | None = None, max_groups: int | None = None) -> str:
         """
         Main processing pipeline for a newsletter issue.
 
         Args:
             url: URL of the newsletter issue
+            html_content: Full HTML content from RSS feed
             issue_id: Optional pre-generated issue UUID (for background tasks)
             max_groups: Optional limit on number of topic groups to process (for testing)
 
@@ -84,9 +85,8 @@ class NewsletterProcessor:
         """
         logger.info(f"Processing newsletter: {url}")
 
-        # Fetch and parse RSS/HTML
-        raw_content = await self._fetch_newsletter(url)
-        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, raw_content, url)
+        # Parse HTML content from RSS feed
+        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, html_content, url)
         logger.info(f"Parsed {len(segments_data)} segments from newsletter")
 
         # Upsert issue and resolve the canonical id
@@ -354,12 +354,6 @@ class NewsletterProcessor:
 
         logger.info(f"Newsletter processing complete: {issue_id}")
         return issue_id
-
-    async def _fetch_newsletter(self, url: str) -> str:
-        """Fetch newsletter content from URL."""
-        response = await self.http_client.get(url)
-        response.raise_for_status()
-        return response.text
 
     @staticmethod
     def _normalize_extracted_text(text: str) -> str:
@@ -981,41 +975,51 @@ class NewsletterProcessor:
             "status": "completed" if issue.get("processed_at") else "processing",
         }
 
-    async def fetch_latest_newsletter_url(self) -> str | None:
+    async def fetch_latest_newsletter(self) -> tuple[str, str] | None:
         """
-        Fetch the latest newsletter URL from the AINews RSS feed.
-        
-        This method is used by Cloud Scheduler to discover new issues
-        without hardcoding URLs in the scheduler configuration.
+        Fetch the latest newsletter URL and full HTML content from the RSS feed.
+
+        Uses the RSS content:encoded field to get complete post HTML,
+        avoiding Substack's paywall on direct page fetches.
 
         Returns:
-            str: URL of the latest newsletter issue, or None if fetch fails
+            tuple[str, str]: (url, html_content) of the latest issue, or None if fetch fails
         """
         rss_url = Config._processing.get("rssUrl", "https://news.smol.ai/rss.xml")
         logger.info(f"Fetching RSS feed: {rss_url}")
-        
+
         try:
             response = await self.http_client.get(rss_url)
             response.raise_for_status()
-            
+
             # Parse RSS feed
             feed = await asyncio.to_thread(feedparser.parse, response.text)
-            
+
             if not feed.entries:
                 logger.warning("No entries found in RSS feed")
                 return None
-            
-            # Get the most recent entry's link
+
+            # Get the most recent entry's link and full content
             latest_entry = feed.entries[0]
             latest_url = latest_entry.get("link")
-            
-            if latest_url:
-                logger.info(f"Found latest newsletter URL: {latest_url}")
-                return latest_url
-            else:
+
+            # Extract full HTML from content:encoded (feedparser exposes as entry.content)
+            html_content = None
+            if latest_entry.get("content"):
+                html_content = latest_entry.content[0].get("value")
+            if not html_content:
+                html_content = latest_entry.get("summary")
+
+            if not latest_url:
                 logger.warning("Latest RSS entry has no link")
                 return None
-                
+            if not html_content:
+                logger.warning("Latest RSS entry has no content")
+                return None
+
+            logger.info(f"Found latest newsletter: {latest_url} ({len(html_content)} chars)")
+            return (latest_url, html_content)
+
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch RSS feed: {e}")
             return None
