@@ -66,14 +66,7 @@ jobs:
             --region $REGION \
             --allow-unauthenticated \
             --service-account ${{ secrets.GCP_SA_EMAIL }} \
-            --set-env-vars "\
-          ENVIRONMENT=development,\
-          SUPABASE_URL=${{ secrets.SUPABASE_URL_DEV }},\
-          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY_DEV }},\
-          GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},\
-          GCP_REGION=us-central1,\
-          GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME_DEV }},\
-          ALLOWED_ORIGINS=https://ainews-assistant-git-dev-tylerxiety.vercel.app,http://localhost:5173" \
+            --set-env-vars "^||^ENVIRONMENT=development||SUPABASE_URL=${{ secrets.SUPABASE_URL_DEV }}||SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY_DEV }}||GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}||GCP_REGION=us-central1||GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME_DEV }}||ALLOWED_ORIGINS=https://ainews-assistant-git-dev-tylerxiety.vercel.app,http://localhost:5173" \
             --timeout 3600 \
             --memory 2Gi \
             --cpu 1
