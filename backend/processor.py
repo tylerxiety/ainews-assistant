@@ -977,13 +977,16 @@ class NewsletterProcessor:
             "status": "completed" if issue.get("processed_at") else "processing",
         }
 
-    async def fetch_latest_newsletter(self) -> tuple[str, str, str] | None:
+    async def fetch_latest_newsletter(self, entry_index: int = 0) -> tuple[str, str, str] | None:
         """
-        Fetch the latest newsletter URL, title, and full HTML content from the RSS feed.
+        Fetch a newsletter URL, title, and full HTML content from the RSS feed.
 
         Uses the RSS content:encoded field to get complete post HTML.
         If content is truncated (Substack paywall), falls back to authenticated
         page fetch using SUBSTACK_SID cookie if available.
+
+        Args:
+            entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
 
         Returns:
             tuple[str, str, str]: (url, title, html_content), or None if fetch fails
@@ -1002,8 +1005,12 @@ class NewsletterProcessor:
                 logger.warning("No entries found in RSS feed")
                 return None
 
-            # Get the most recent entry
-            latest_entry = feed.entries[0]
+            if entry_index >= len(feed.entries):
+                logger.warning(f"Entry index {entry_index} out of range ({len(feed.entries)} entries)")
+                return None
+
+            # Get the requested entry
+            latest_entry = feed.entries[entry_index]
             latest_url = latest_entry.get("link")
             title = latest_entry.get("title", "Untitled Newsletter")
 

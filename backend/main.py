@@ -184,26 +184,27 @@ async def ask_question_audio(
 
 
 @app.post("/process-latest")
-async def process_latest_newsletter(force: bool = False):
+async def process_latest_newsletter(force: bool = False, entry_index: int = 0):
     """
-    Discover and process the latest newsletter from RSS feed.
-    
+    Discover and process a newsletter from the RSS feed.
+
     This endpoint is designed to be called by Cloud Scheduler every 6 hours.
     It automatically:
-    1. Fetches the RSS feed to find the latest newsletter URL
+    1. Fetches the RSS feed to find the newsletter URL
     2. Checks if this issue has already been processed
     3. If new, triggers processing synchronously (to ensure completion on Cloud Run)
-    
+
     Args:
         force: If True, bypass the check for existing issue and re-process.
+        entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
 
     Returns:
-        dict: Processing status - 'skipped' if already processed, 
+        dict: Processing status - 'skipped' if already processed,
               'completed' if new issue found and processed, or 'no_new_issue' if RSS fetch failed
     """
     try:
-        # Step 1: Discover latest newsletter URL and content from RSS
-        result = await processor.fetch_latest_newsletter()
+        # Step 1: Discover newsletter URL and content from RSS
+        result = await processor.fetch_latest_newsletter(entry_index)
 
         if not result:
             logger.warning("No newsletter found in RSS feed")
