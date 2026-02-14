@@ -982,8 +982,8 @@ class NewsletterProcessor:
         Fetch a newsletter URL, title, and full HTML content from the RSS feed.
 
         Uses the RSS content:encoded field to get complete post HTML.
-        If content is truncated (Substack paywall), falls back to authenticated
-        page fetch using SUBSTACK_SID cookie if available.
+        If content is truncated (Substack paywall), re-fetches the RSS feed
+        with connect.sid cookie to get full content.
 
         Args:
             entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
@@ -995,38 +995,11 @@ class NewsletterProcessor:
         logger.info(f"Fetching RSS feed: {rss_url}")
 
         try:
-            response = await self.http_client.get(rss_url)
-            response.raise_for_status()
-
-            # Parse RSS feed
-            feed = await asyncio.to_thread(feedparser.parse, response.text)
-
-            if not feed.entries:
-                logger.warning("No entries found in RSS feed")
+            entry = await self._fetch_rss_entry(rss_url, entry_index)
+            if not entry:
                 return None
 
-            if entry_index >= len(feed.entries):
-                logger.warning(f"Entry index {entry_index} out of range ({len(feed.entries)} entries)")
-                return None
-
-            # Get the requested entry
-            latest_entry = feed.entries[entry_index]
-            latest_url = latest_entry.get("link")
-            title = latest_entry.get("title", "Untitled Newsletter")
-
-            # Extract full HTML from content:encoded (feedparser exposes as entry.content)
-            html_content = None
-            if latest_entry.get("content"):
-                html_content = latest_entry.content[0].get("value")
-            if not html_content:
-                html_content = latest_entry.get("summary")
-
-            if not latest_url:
-                logger.warning("Latest RSS entry has no link")
-                return None
-            if not html_content:
-                logger.warning("Latest RSS entry has no content")
-                return None
+            latest_url, title, html_content = entry
 
             # Detect truncated content (Substack paywall appends "Read more" link)
             is_truncated = bool(re.search(
@@ -1036,7 +1009,16 @@ class NewsletterProcessor:
 
             if is_truncated:
                 logger.warning(f"RSS content is truncated (paywall): {latest_url}")
-                html_content = await self._fetch_with_cookie(latest_url, html_content)
+                connect_sid = os.environ.get("SUBSTACK_CONNECT_SID")
+                if connect_sid:
+                    auth_entry = await self._fetch_rss_entry(
+                        rss_url, entry_index, cookies={"connect.sid": connect_sid}
+                    )
+                    if auth_entry:
+                        _, _, html_content = auth_entry
+                        logger.info(f"Fetched full content with cookie: {latest_url} ({len(html_content)} chars)")
+                else:
+                    logger.warning("SUBSTACK_CONNECT_SID not set — processing truncated content")
 
             logger.info(f"Found latest newsletter: {latest_url} ({len(html_content)} chars)")
             return (latest_url, title, html_content)
@@ -1048,26 +1030,40 @@ class NewsletterProcessor:
             logger.error(f"Error parsing RSS feed: {e}")
             return None
 
-    async def _fetch_with_cookie(self, url: str, fallback_content: str) -> str:
-        """
-        Fetch full page content using SUBSTACK_SID cookie.
-        Returns fallback_content if cookie is not configured or fetch fails.
-        """
-        sid = os.environ.get("SUBSTACK_SID")
-        if not sid:
-            logger.warning("SUBSTACK_SID not set — processing truncated content")
-            return fallback_content
+    async def _fetch_rss_entry(
+        self, rss_url: str, entry_index: int, cookies: dict | None = None
+    ) -> tuple[str, str, str] | None:
+        """Fetch and parse a single RSS feed entry. Returns (url, title, html_content) or None."""
+        response = await self.http_client.get(rss_url, cookies=cookies or {})
+        response.raise_for_status()
 
-        try:
-            response = await self.http_client.get(
-                url, cookies={"substack.sid": sid}
-            )
-            response.raise_for_status()
-            logger.info(f"Fetched full content with cookie: {url} ({len(response.text)} chars)")
-            return response.text
-        except Exception as e:
-            logger.error(f"Cookie-authenticated fetch failed: {e}")
-            return fallback_content
+        feed = await asyncio.to_thread(feedparser.parse, response.text)
+
+        if not feed.entries:
+            logger.warning("No entries found in RSS feed")
+            return None
+        if entry_index >= len(feed.entries):
+            logger.warning(f"Entry index {entry_index} out of range ({len(feed.entries)} entries)")
+            return None
+
+        entry = feed.entries[entry_index]
+        url = entry.get("link")
+        title = entry.get("title", "Untitled Newsletter")
+
+        html_content = None
+        if entry.get("content"):
+            html_content = entry.content[0].get("value")
+        if not html_content:
+            html_content = entry.get("summary")
+
+        if not url:
+            logger.warning("RSS entry has no link")
+            return None
+        if not html_content:
+            logger.warning("RSS entry has no content")
+            return None
+
+        return (url, title, html_content)
 
     def check_issue_exists(self, url: str) -> bool:
         """
