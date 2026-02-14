@@ -212,7 +212,7 @@ async def process_latest_newsletter(force: bool = False):
                 "message": "Could not fetch latest newsletter from RSS feed"
             }
 
-        latest_url, html_content = result
+        latest_url, title, html_content = result
 
         # Step 2: Check if already processed
         if not force and processor.check_issue_exists(latest_url):
@@ -228,7 +228,7 @@ async def process_latest_newsletter(force: bool = False):
         logger.info(f"New newsletter found, starting processing: {latest_url}")
 
         # Wait for processing to complete
-        await processor.process_newsletter(latest_url, html_content, issue_id)
+        await processor.process_newsletter(latest_url, title, html_content, issue_id)
 
         return {
             "status": "completed",

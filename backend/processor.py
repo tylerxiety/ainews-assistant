@@ -5,6 +5,7 @@ import asyncio
 import io
 import json
 import logging
+import os
 import re
 import uuid
 from datetime import UTC, datetime
@@ -70,12 +71,13 @@ class NewsletterProcessor:
         """Close resources."""
         await self.http_client.aclose()
 
-    async def process_newsletter(self, url: str, html_content: str, issue_id: str | None = None, max_groups: int | None = None) -> str:
+    async def process_newsletter(self, url: str, title: str, html_content: str, issue_id: str | None = None, max_groups: int | None = None) -> str:
         """
         Main processing pipeline for a newsletter issue.
 
         Args:
             url: URL of the newsletter issue
+            title: Issue title from RSS entry
             html_content: Full HTML content from RSS feed
             issue_id: Optional pre-generated issue UUID (for background tasks)
             max_groups: Optional limit on number of topic groups to process (for testing)
@@ -86,7 +88,7 @@ class NewsletterProcessor:
         logger.info(f"Processing newsletter: {url}")
 
         # Parse HTML content from RSS feed
-        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, html_content, url)
+        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, html_content, url, title)
         logger.info(f"Parsed {len(segments_data)} segments from newsletter")
 
         # Upsert issue and resolve the canonical id
@@ -390,7 +392,7 @@ class NewsletterProcessor:
         """Create a lightweight normalization fingerprint for duplicate detection."""
         return re.sub(r"\W+", " ", text.lower()).strip()
 
-    def _parse_newsletter(self, html_content: str, url: str) -> tuple[dict, list[dict]]:
+    def _parse_newsletter(self, html_content: str, url: str, title: str | None = None) -> tuple[dict, list[dict]]:
         """
         Parse newsletter HTML into structured segments.
         Supports various formats (Substack, Buttondown, generic blogs) by detecting
@@ -399,22 +401,22 @@ class NewsletterProcessor:
         Args:
             html_content: Raw HTML
             url: Newsletter URL
+            title: Optional title override (e.g., from RSS entry metadata)
 
         Returns:
             tuple: (issue_data, segments_data)
         """
         soup = BeautifulSoup(html_content, "html.parser")
 
-        # Extract issue metadata
-        title_tag = soup.find("title")
-        # Try to find h1 as title if title tag is generic
-        h1 = soup.find("h1")
-        
-        title = "Untitled Newsletter"
-        if title_tag and title_tag.text.strip():
-            title = title_tag.text.strip()
-        elif h1 and h1.text.strip():
-            title = h1.text.strip()
+        # Use provided title, or extract from HTML
+        if not title:
+            title_tag = soup.find("title")
+            h1 = soup.find("h1")
+            title = "Untitled Newsletter"
+            if title_tag and title_tag.text.strip():
+                title = title_tag.text.strip()
+            elif h1 and h1.text.strip():
+                title = h1.text.strip()
 
         published_at = datetime.now(UTC).isoformat()
 
@@ -975,15 +977,16 @@ class NewsletterProcessor:
             "status": "completed" if issue.get("processed_at") else "processing",
         }
 
-    async def fetch_latest_newsletter(self) -> tuple[str, str] | None:
+    async def fetch_latest_newsletter(self) -> tuple[str, str, str] | None:
         """
-        Fetch the latest newsletter URL and full HTML content from the RSS feed.
+        Fetch the latest newsletter URL, title, and full HTML content from the RSS feed.
 
-        Uses the RSS content:encoded field to get complete post HTML,
-        avoiding Substack's paywall on direct page fetches.
+        Uses the RSS content:encoded field to get complete post HTML.
+        If content is truncated (Substack paywall), falls back to authenticated
+        page fetch using SUBSTACK_SID cookie if available.
 
         Returns:
-            tuple[str, str]: (url, html_content) of the latest issue, or None if fetch fails
+            tuple[str, str, str]: (url, title, html_content), or None if fetch fails
         """
         rss_url = Config._processing.get("rssUrl", "https://news.smol.ai/rss.xml")
         logger.info(f"Fetching RSS feed: {rss_url}")
@@ -999,9 +1002,10 @@ class NewsletterProcessor:
                 logger.warning("No entries found in RSS feed")
                 return None
 
-            # Get the most recent entry's link and full content
+            # Get the most recent entry
             latest_entry = feed.entries[0]
             latest_url = latest_entry.get("link")
+            title = latest_entry.get("title", "Untitled Newsletter")
 
             # Extract full HTML from content:encoded (feedparser exposes as entry.content)
             html_content = None
@@ -1017,8 +1021,18 @@ class NewsletterProcessor:
                 logger.warning("Latest RSS entry has no content")
                 return None
 
+            # Detect truncated content (Substack paywall appends "Read more" link)
+            is_truncated = bool(re.search(
+                r'<a\s+href="[^"]*">\s*Read more\s*</a>\s*</p>\s*$',
+                html_content.strip(),
+            ))
+
+            if is_truncated:
+                logger.warning(f"RSS content is truncated (paywall): {latest_url}")
+                html_content = await self._fetch_with_cookie(latest_url, html_content)
+
             logger.info(f"Found latest newsletter: {latest_url} ({len(html_content)} chars)")
-            return (latest_url, html_content)
+            return (latest_url, title, html_content)
 
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch RSS feed: {e}")
@@ -1026,6 +1040,27 @@ class NewsletterProcessor:
         except Exception as e:
             logger.error(f"Error parsing RSS feed: {e}")
             return None
+
+    async def _fetch_with_cookie(self, url: str, fallback_content: str) -> str:
+        """
+        Fetch full page content using SUBSTACK_SID cookie.
+        Returns fallback_content if cookie is not configured or fetch fails.
+        """
+        sid = os.environ.get("SUBSTACK_SID")
+        if not sid:
+            logger.warning("SUBSTACK_SID not set — processing truncated content")
+            return fallback_content
+
+        try:
+            response = await self.http_client.get(
+                url, cookies={"substack.sid": sid}
+            )
+            response.raise_for_status()
+            logger.info(f"Fetched full content with cookie: {url} ({len(response.text)} chars)")
+            return response.text
+        except Exception as e:
+            logger.error(f"Cookie-authenticated fetch failed: {e}")
+            return fallback_content
 
     def check_issue_exists(self, url: str) -> bool:
         """
