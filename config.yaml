@@ -68,7 +68,7 @@ backend:
       # Remove repeated Reddit items using lightweight text fingerprint dedup
       redditLightDedup: true
     # RSS Feed URL for newsletter discovery
-    rssUrl: "https://www.latent.space/feed?section=ainews"
+    rssUrl: "https://news.smol.ai/rss.xml"
   
   ai:
     models:
