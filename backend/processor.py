@@ -9,6 +9,7 @@ import os
 import re
 import uuid
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 
 import feedparser
 import httpx
@@ -71,7 +72,7 @@ class NewsletterProcessor:
         """Close resources."""
         await self.http_client.aclose()
 
-    async def process_newsletter(self, url: str, title: str, html_content: str, issue_id: str | None = None, max_groups: int | None = None) -> str:
+    async def process_newsletter(self, url: str, title: str, html_content: str, issue_id: str | None = None, max_groups: int | None = None, published_at: str | None = None) -> str:
         """
         Main processing pipeline for a newsletter issue.
 
@@ -81,6 +82,7 @@ class NewsletterProcessor:
             html_content: Full HTML content from RSS feed
             issue_id: Optional pre-generated issue UUID (for background tasks)
             max_groups: Optional limit on number of topic groups to process (for testing)
+            published_at: Optional publication date from RSS feed
 
         Returns:
             str: Issue UUID
@@ -88,7 +90,7 @@ class NewsletterProcessor:
         logger.info(f"Processing newsletter: {url}")
 
         # Parse HTML content from RSS feed
-        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, html_content, url, title)
+        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, html_content, url, title, published_at)
         logger.info(f"Parsed {len(segments_data)} segments from newsletter")
 
         # Upsert issue and resolve the canonical id
@@ -392,7 +394,7 @@ class NewsletterProcessor:
         """Create a lightweight normalization fingerprint for duplicate detection."""
         return re.sub(r"\W+", " ", text.lower()).strip()
 
-    def _parse_newsletter(self, html_content: str, url: str, title: str | None = None) -> tuple[dict, list[dict]]:
+    def _parse_newsletter(self, html_content: str, url: str, title: str | None = None, published_at: str | None = None) -> tuple[dict, list[dict]]:
         """
         Parse newsletter HTML into structured segments.
         Supports various formats (Substack, Buttondown, generic blogs) by detecting
@@ -402,6 +404,7 @@ class NewsletterProcessor:
             html_content: Raw HTML
             url: Newsletter URL
             title: Optional title override (e.g., from RSS entry metadata)
+            published_at: Optional publication date from RSS feed
 
         Returns:
             tuple: (issue_data, segments_data)
@@ -418,7 +421,8 @@ class NewsletterProcessor:
             elif h1 and h1.text.strip():
                 title = h1.text.strip()
 
-        published_at = datetime.now(UTC).isoformat()
+        if not published_at:
+            published_at = datetime.now(UTC).isoformat()
 
         issue_data = {
             "title": title,
@@ -977,9 +981,9 @@ class NewsletterProcessor:
             "status": "completed" if issue.get("processed_at") else "processing",
         }
 
-    async def fetch_latest_newsletter(self, entry_index: int = 0) -> tuple[str, str, str] | None:
+    async def fetch_latest_newsletter(self, entry_index: int = 0) -> tuple[str, str, str, str | None] | None:
         """
-        Fetch a newsletter URL, title, and full HTML content from the RSS feed.
+        Fetch a newsletter URL, title, full HTML content, and published date from the RSS feed.
 
         Uses the RSS content:encoded field to get complete post HTML.
         If content is truncated (Substack paywall), re-fetches the RSS feed
@@ -989,7 +993,7 @@ class NewsletterProcessor:
             entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
 
         Returns:
-            tuple[str, str, str]: (url, title, html_content), or None if fetch fails
+            tuple[str, str, str, str | None]: (url, title, html_content, published), or None if fetch fails
         """
         rss_url = Config._processing.get("rssUrl", "https://news.smol.ai/rss.xml")
         logger.info(f"Fetching RSS feed: {rss_url}")
@@ -999,7 +1003,7 @@ class NewsletterProcessor:
             if not entry:
                 return None
 
-            latest_url, title, html_content = entry
+            latest_url, title, html_content, published = entry
 
             # Detect truncated content (Substack paywall appends "Read more" link)
             is_truncated = bool(re.search(
@@ -1015,13 +1019,13 @@ class NewsletterProcessor:
                         rss_url, entry_index, cookies={"connect.sid": connect_sid}
                     )
                     if auth_entry:
-                        _, _, html_content = auth_entry
+                        _, _, html_content, _ = auth_entry
                         logger.info(f"Fetched full content with cookie: {latest_url} ({len(html_content)} chars)")
                 else:
                     logger.warning("SUBSTACK_CONNECT_SID not set — processing truncated content")
 
             logger.info(f"Found latest newsletter: {latest_url} ({len(html_content)} chars)")
-            return (latest_url, title, html_content)
+            return (latest_url, title, html_content, published)
 
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch RSS feed: {e}")
@@ -1032,8 +1036,8 @@ class NewsletterProcessor:
 
     async def _fetch_rss_entry(
         self, rss_url: str, entry_index: int, cookies: dict | None = None
-    ) -> tuple[str, str, str] | None:
-        """Fetch and parse a single RSS feed entry. Returns (url, title, html_content) or None."""
+    ) -> tuple[str, str, str, str | None] | None:
+        """Fetch and parse a single RSS feed entry. Returns (url, title, html_content, published) or None."""
         response = await self.http_client.get(rss_url, cookies=cookies or {})
         response.raise_for_status()
 
@@ -1050,6 +1054,15 @@ class NewsletterProcessor:
         url = entry.get("link")
         title = entry.get("title", "Untitled Newsletter")
 
+        # Convert RSS published date (RFC 2822) to ISO 8601 for Supabase
+        published = None
+        raw_published = entry.get("published")
+        if raw_published:
+            try:
+                published = parsedate_to_datetime(raw_published).isoformat()
+            except (ValueError, TypeError):
+                logger.warning(f"Could not parse RSS published date: {raw_published}")
+
         html_content = None
         if entry.get("content"):
             html_content = entry.content[0].get("value")
@@ -1063,7 +1076,7 @@ class NewsletterProcessor:
             logger.warning("RSS entry has no content")
             return None
 
-        return (url, title, html_content)
+        return (url, title, html_content, published)
 
     def check_issue_exists(self, url: str) -> bool:
         """
