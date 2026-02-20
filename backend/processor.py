@@ -460,6 +460,7 @@ class NewsletterProcessor:
         order_index = 0
         current_root_section = "other"
         reddit_seen_fingerprints: set[str] = set()
+        hit_trailing_promo = False
         
         # 2. Iterate through elements to build segments
         # We want to segment by Headers (H1-H4)
@@ -502,6 +503,15 @@ class NewsletterProcessor:
             # Get text content
             text = self._normalize_extracted_text(element.get_text(" ", strip=True))
             if not text:
+                continue
+
+            # Source-specific content filtering
+            if hit_trailing_promo:
+                continue
+            if text.startswith("Loading the Elevenlabs Text to Speech"):
+                continue
+            if "want more?" in text.lower() and "stay updated" in text.lower():
+                hit_trailing_promo = True
                 continue
 
             # Track top-level section boundaries so we can apply targeted
