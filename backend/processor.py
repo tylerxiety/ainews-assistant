@@ -1004,12 +1004,12 @@ class NewsletterProcessor:
         }
 
     @staticmethod
-    def _is_bundle_entry(title: str) -> bool:
-        """Bundle titles have 3+ comma-separated topics.
-        Example bundle: 'Topic A, Topic B, Topic C, Topic D'
-        Example individual: 'xAI Blasts Off'
+    def _is_bundle_entry(url: str) -> bool:
+        """Weekly bundle entries use /issue-NNN/ URL pattern.
+        Example bundle: https://charonhub.deeplearning.ai/issue-341/
+        Example individual: https://charonhub.deeplearning.ai/why-hollywood-worries-about-ai/
         """
-        return title.count(',') >= 2
+        return bool(re.search(r'/issue-\d+/?', url))
 
     async def fetch_latest_newsletter(self, entry_index: int = 0, source_id: str | None = None) -> tuple[str, str, str, str | None, str] | None:
         """
@@ -1019,8 +1019,12 @@ class NewsletterProcessor:
         If content is truncated (Substack paywall), re-fetches the RSS feed
         with auth cookie to get full content.
 
+        For sources with filterBundleOnly, entry_index means "the Nth bundle"
+        (skipping individual articles), not the raw RSS feed index.
+
         Args:
-            entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
+            entry_index: For normal sources, RSS feed entry index (0 = newest).
+                         For filterBundleOnly sources, the Nth weekly bundle (0 = latest bundle).
             source_id: Newsletter source identifier (defaults to Config.DEFAULT_SOURCE_ID)
 
         Returns:
@@ -1032,30 +1036,33 @@ class NewsletterProcessor:
         logger.info(f"Fetching RSS feed for {source_id}: {rss_url}")
 
         try:
-            entry = await self._fetch_rss_entry(rss_url, entry_index)
-            if not entry:
-                return None
-
-            latest_url, title, html_content, published = entry
-
-            # Bundle filter: for sources like The Batch, skip individual articles
-            if source_config.get("filterBundleOnly") and not self._is_bundle_entry(title):
-                logger.info(f"Skipping non-bundle entry for {source_id}: {title}")
-                # Try next entries to find a bundle
+            # For bundle-only sources, scan the feed for the Nth bundle entry
+            if source_config.get("filterBundleOnly"):
                 feed_response = await self.http_client.get(rss_url)
                 feed_response.raise_for_status()
                 feed = await asyncio.to_thread(feedparser.parse, feed_response.text)
-                for i in range(len(feed.entries)):
-                    if i == entry_index:
+
+                bundle_count = 0
+                for raw_entry in feed.entries:
+                    entry_url = raw_entry.get("link", "")
+                    if not self._is_bundle_entry(entry_url):
                         continue
-                    candidate = await self._fetch_rss_entry(rss_url, i)
-                    if candidate and self._is_bundle_entry(candidate[1]):
-                        latest_url, title, html_content, published = candidate
-                        logger.info(f"Found bundle entry for {source_id}: {title}")
+                    if bundle_count == entry_index:
+                        entry = self._extract_entry_data(raw_entry)
+                        if not entry:
+                            return None
+                        latest_url, title, html_content, published = entry
+                        logger.info(f"Found bundle #{entry_index} for {source_id}: {title}")
                         break
+                    bundle_count += 1
                 else:
-                    logger.warning(f"No bundle entry found for {source_id}")
+                    logger.warning(f"No bundle entry at index {entry_index} for {source_id} (found {bundle_count} bundles)")
                     return None
+            else:
+                entry = await self._fetch_rss_entry(rss_url, entry_index)
+                if not entry:
+                    return None
+                latest_url, title, html_content, published = entry
 
             # Detect truncated content (Substack paywall appends "Read more" link)
             is_truncated = bool(re.search(
@@ -1088,23 +1095,9 @@ class NewsletterProcessor:
             logger.error(f"Error parsing RSS feed: {e}")
             return None
 
-    async def _fetch_rss_entry(
-        self, rss_url: str, entry_index: int, cookies: dict | None = None
-    ) -> tuple[str, str, str, str | None] | None:
-        """Fetch and parse a single RSS feed entry. Returns (url, title, html_content, published) or None."""
-        response = await self.http_client.get(rss_url, cookies=cookies or {})
-        response.raise_for_status()
-
-        feed = await asyncio.to_thread(feedparser.parse, response.text)
-
-        if not feed.entries:
-            logger.warning("No entries found in RSS feed")
-            return None
-        if entry_index >= len(feed.entries):
-            logger.warning(f"Entry index {entry_index} out of range ({len(feed.entries)} entries)")
-            return None
-
-        entry = feed.entries[entry_index]
+    @staticmethod
+    def _extract_entry_data(entry) -> tuple[str, str, str, str | None] | None:
+        """Extract (url, title, html_content, published) from a parsed feedparser entry."""
         url = entry.get("link")
         title = entry.get("title", "Untitled Newsletter")
 
@@ -1131,6 +1124,24 @@ class NewsletterProcessor:
             return None
 
         return (url, title, html_content, published)
+
+    async def _fetch_rss_entry(
+        self, rss_url: str, entry_index: int, cookies: dict | None = None
+    ) -> tuple[str, str, str, str | None] | None:
+        """Fetch and parse a single RSS feed entry. Returns (url, title, html_content, published) or None."""
+        response = await self.http_client.get(rss_url, cookies=cookies or {})
+        response.raise_for_status()
+
+        feed = await asyncio.to_thread(feedparser.parse, response.text)
+
+        if not feed.entries:
+            logger.warning("No entries found in RSS feed")
+            return None
+        if entry_index >= len(feed.entries):
+            logger.warning(f"Entry index {entry_index} out of range ({len(feed.entries)} entries)")
+            return None
+
+        return self._extract_entry_data(feed.entries[entry_index])
 
     def check_issue_exists(self, url: str) -> bool:
         """

@@ -1,0 +1,289 @@
+"""Tests for multi-source newsletter support."""
+import asyncio
+import os
+import sys
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+# Add backend to path so we can import modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+
+from config import Config
+from processor import NewsletterProcessor
+
+
+# ────────────────────────────────────────────
+# Config tests
+# ────────────────────────────────────────────
+
+class TestConfig:
+    def test_newsletter_sources_loaded(self):
+        assert "ainews" in Config.NEWSLETTER_SOURCES
+        assert "the_batch" in Config.NEWSLETTER_SOURCES
+        assert "tongyi_weekly" in Config.NEWSLETTER_SOURCES
+
+    def test_default_source(self):
+        assert Config.DEFAULT_SOURCE_ID == "ainews"
+
+    def test_get_source_config_valid(self):
+        cfg = Config.get_source_config("ainews")
+        assert cfg["rssUrl"] == "https://news.smol.ai/rss.xml"
+        assert cfg["authCookieName"] == "connect.sid"
+
+    def test_get_source_config_the_batch(self):
+        cfg = Config.get_source_config("the_batch")
+        assert cfg["filterBundleOnly"] is True
+        assert "charonhub.deeplearning.ai" in cfg["rssUrl"]
+
+    def test_get_source_config_tongyi(self):
+        cfg = Config.get_source_config("tongyi_weekly")
+        assert "tongyilab.substack.com" in cfg["rssUrl"]
+
+    def test_get_source_config_unknown_raises(self):
+        with pytest.raises(ValueError, match="Unknown source"):
+            Config.get_source_config("nonexistent")
+
+    def test_source_configs_have_required_fields(self):
+        for src_id, cfg in Config.NEWSLETTER_SOURCES.items():
+            assert "id" in cfg, f"{src_id} missing 'id'"
+            assert "name" in cfg, f"{src_id} missing 'name'"
+            assert "rssUrl" in cfg, f"{src_id} missing 'rssUrl'"
+
+
+# ────────────────────────────────────────────
+# Bundle filter tests
+# ────────────────────────────────────────────
+
+class TestBundleFilter:
+    def test_bundle_url_with_issue_id(self):
+        assert NewsletterProcessor._is_bundle_entry(
+            "https://charonhub.deeplearning.ai/issue-341/"
+        ) is True
+
+    def test_bundle_url_with_issue_id_no_trailing_slash(self):
+        assert NewsletterProcessor._is_bundle_entry(
+            "https://charonhub.deeplearning.ai/issue-340"
+        ) is True
+
+    def test_individual_article_slug_url(self):
+        assert NewsletterProcessor._is_bundle_entry(
+            "https://charonhub.deeplearning.ai/why-hollywood-worries-about-ai/"
+        ) is False
+
+    def test_individual_article_with_commas_in_title_but_slug_url(self):
+        """Articles with commas in title but slug URL should NOT be bundles."""
+        assert NewsletterProcessor._is_bundle_entry(
+            "https://charonhub.deeplearning.ai/meta-amazon-microsoft-google-and-nvidia-pour-millions-into-government-influence/"
+        ) is False
+
+    def test_empty_url(self):
+        assert NewsletterProcessor._is_bundle_entry("") is False
+
+
+# ────────────────────────────────────────────
+# Parse newsletter consolidation guards
+# ────────────────────────────────────────────
+
+class TestParseConsolidationGuards:
+    """Verify that Discord/Reddit consolidation only applies to ainews source."""
+
+    def _make_processor(self):
+        """Create a processor with mocked dependencies."""
+        with patch("processor.create_client"), \
+             patch("processor.vertexai"), \
+             patch("processor.GenerativeModel"), \
+             patch("processor.texttospeech.TextToSpeechClient"), \
+             patch("processor.storage.Client"):
+            proc = NewsletterProcessor(
+                supabase_url="http://fake",
+                supabase_key="fake",
+                gcp_project_id="fake",
+                gcs_bucket_name="fake",
+            )
+        return proc
+
+    def test_ainews_discord_consolidation_active(self):
+        """Discord consolidation should filter discord_detailed for ainews."""
+        proc = self._make_processor()
+        html = """
+        <article>
+            <h1>AI Discord Recap</h1>
+            <p>Some recap content that is long enough to pass the filter</p>
+            <h1>Discord: Detailed Channel Summaries</h1>
+            <p>This detailed content should be skipped for ainews source</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="ainews")
+        # With recap_only mode, discord_detailed content should be filtered out
+        texts = [s["content_raw"] for s in segments]
+        assert not any("detailed content should be skipped" in t.lower() for t in texts)
+
+    def test_the_batch_discord_consolidation_inactive(self):
+        """Discord consolidation should NOT filter for non-ainews sources."""
+        proc = self._make_processor()
+        html = """
+        <article>
+            <h1>AI Discord Recap</h1>
+            <p>Some recap content that is long enough to pass the filter</p>
+            <h1>Discord: Detailed Channel Summaries</h1>
+            <p>This detailed content should be kept for non-ainews source</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="the_batch")
+        texts = [s["content_raw"] for s in segments]
+        assert any("detailed content should be kept" in t.lower() for t in texts)
+
+    def test_null_source_defaults_to_ainews_behavior(self):
+        """source_id=None should behave like ainews (consolidation active)."""
+        proc = self._make_processor()
+        html = """
+        <article>
+            <h1>AI Discord Recap</h1>
+            <p>Some recap content that is long enough to pass the filter</p>
+            <h1>Discord: Detailed Channel Summaries</h1>
+            <p>This detailed content should be skipped when source is None</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id=None)
+        texts = [s["content_raw"] for s in segments]
+        assert not any("detailed content should be skipped" in t.lower() for t in texts)
+
+
+# ────────────────────────────────────────────
+# Source-specific content filtering
+# ────────────────────────────────────────────
+
+class TestSourceContentFiltering:
+    """Verify source-specific junk text is filtered out."""
+
+    def _make_processor(self):
+        with patch("processor.create_client"), \
+             patch("processor.vertexai"), \
+             patch("processor.GenerativeModel"), \
+             patch("processor.texttospeech.TextToSpeechClient"), \
+             patch("processor.storage.Client"):
+            return NewsletterProcessor(
+                supabase_url="http://fake",
+                supabase_key="fake",
+                gcp_project_id="fake",
+                gcs_bucket_name="fake",
+            )
+
+    def test_elevenlabs_loader_text_filtered(self):
+        """The Batch's ElevenLabs TTS loader text should be stripped."""
+        proc = self._make_processor()
+        html = """
+        <article>
+            <p>Loading the Elevenlabs Text to Speech AudioNative Player...</p>
+            <h2>Dear friends,</h2>
+            <p>This is actual newsletter content that should be kept here.</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="the_batch")
+        texts = [s["content_raw"] for s in segments]
+        assert not any("elevenlabs" in t.lower() for t in texts)
+        assert any("actual newsletter content" in t.lower() for t in texts)
+
+    def test_want_more_stay_updated_and_trailing_removed(self):
+        """Tongyi's 'Want More? Stay Updated' and everything after should be stripped."""
+        proc = self._make_processor()
+        html = """
+        <article>
+            <h2>Real Content Topic</h2>
+            <p>This is a real article paragraph with enough text to keep.</p>
+            <h3>Want More? Stay Updated.</h3>
+            <p>Every week, we bring you new model releases and upgrades.</p>
+            <p>Subscribe to The Tongyi Weekly and never miss a release.</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="tongyi_weekly")
+        texts = [s["content_raw"] for s in segments]
+        assert any("real article paragraph" in t.lower() for t in texts)
+        assert not any("every week" in t.lower() for t in texts)
+        assert not any("subscribe" in t.lower() for t in texts)
+
+    def test_want_more_with_emoji_filtered(self):
+        """The emoji variant should also be caught."""
+        proc = self._make_processor()
+        html = """
+        <article>
+            <p>Good content that passes the length filter easily here.</p>
+            <h3>\U0001f4ec Want More? Stay Updated.</h3>
+            <p>Promotional trailing text that should be removed entirely.</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test")
+        texts = [s["content_raw"] for s in segments]
+        assert not any("promotional" in t.lower() for t in texts)
+
+    def test_filtering_does_not_affect_ainews(self):
+        """AINews content with similar-ish text should not be affected."""
+        proc = self._make_processor()
+        html = """
+        <article>
+            <p>Loading a model from HuggingFace is straightforward and easy.</p>
+            <p>Want more details? Stay updated on the latest AI research papers.</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="ainews")
+        texts = [s["content_raw"] for s in segments]
+        # "Loading a model" should stay (doesn't match "Loading the Elevenlabs...")
+        assert any("loading a model" in t.lower() for t in texts)
+
+
+# ────────────────────────────────────────────
+# API endpoint tests
+# ────────────────────────────────────────────
+
+class TestProcessLatestEndpoint:
+    """Test the /process-latest endpoint source parameter handling."""
+
+    @pytest.fixture
+    def client(self):
+        from fastapi.testclient import TestClient
+        # Need to patch before import to avoid real GCP init
+        with patch("processor.create_client"), \
+             patch("processor.vertexai"), \
+             patch("processor.GenerativeModel"), \
+             patch("processor.texttospeech.TextToSpeechClient"), \
+             patch("processor.storage.Client"), \
+             patch.dict(os.environ, {
+                 "SUPABASE_URL": "http://fake",
+                 "SUPABASE_SERVICE_KEY": "fake",
+                 "GCP_PROJECT_ID": "fake",
+                 "GCS_BUCKET_NAME": "fake",
+             }):
+            # Reimport to pick up patched env
+            import importlib
+            import main as main_mod
+            importlib.reload(main_mod)
+            yield TestClient(main_mod.app)
+
+    def test_invalid_source_returns_400(self, client):
+        resp = client.post("/process-latest?source=nonexistent")
+        assert resp.status_code == 400
+        assert "Unknown source" in resp.json()["detail"]
+
+    def test_valid_source_accepted(self, client):
+        """Valid source should not 400 (will fail later in processing, but passes validation)."""
+        with patch.object(
+            NewsletterProcessor, "fetch_latest_newsletter",
+            new_callable=AsyncMock, return_value=None
+        ):
+            resp = client.post("/process-latest?source=the_batch")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["status"] == "no_new_issue"
+            assert body["source"] == "the_batch"
+
+    def test_default_source_when_omitted(self, client):
+        """Omitting source should default to ainews."""
+        with patch.object(
+            NewsletterProcessor, "fetch_latest_newsletter",
+            new_callable=AsyncMock, return_value=None
+        ):
+            resp = client.post("/process-latest")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["source"] == "ainews"
