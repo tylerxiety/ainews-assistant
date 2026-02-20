@@ -72,7 +72,7 @@ class NewsletterProcessor:
         """Close resources."""
         await self.http_client.aclose()
 
-    async def process_newsletter(self, url: str, title: str, html_content: str, issue_id: str | None = None, max_groups: int | None = None, published_at: str | None = None) -> str:
+    async def process_newsletter(self, url: str, title: str, html_content: str, issue_id: str | None = None, max_groups: int | None = None, published_at: str | None = None, source_id: str | None = None) -> str:
         """
         Main processing pipeline for a newsletter issue.
 
@@ -83,15 +83,20 @@ class NewsletterProcessor:
             issue_id: Optional pre-generated issue UUID (for background tasks)
             max_groups: Optional limit on number of topic groups to process (for testing)
             published_at: Optional publication date from RSS feed
+            source_id: Newsletter source identifier (e.g. "ainews", "the_batch")
 
         Returns:
             str: Issue UUID
         """
-        logger.info(f"Processing newsletter: {url}")
+        logger.info(f"Processing newsletter: {url} (source={source_id})")
 
         # Parse HTML content from RSS feed
-        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, html_content, url, title, published_at)
+        issue_data, segments_data = await asyncio.to_thread(self._parse_newsletter, html_content, url, title, published_at, source_id)
         logger.info(f"Parsed {len(segments_data)} segments from newsletter")
+
+        # Tag issue with source
+        if source_id:
+            issue_data["source"] = source_id
 
         # Upsert issue and resolve the canonical id
         if issue_id:
@@ -394,7 +399,7 @@ class NewsletterProcessor:
         """Create a lightweight normalization fingerprint for duplicate detection."""
         return re.sub(r"\W+", " ", text.lower()).strip()
 
-    def _parse_newsletter(self, html_content: str, url: str, title: str | None = None, published_at: str | None = None) -> tuple[dict, list[dict]]:
+    def _parse_newsletter(self, html_content: str, url: str, title: str | None = None, published_at: str | None = None, source_id: str | None = None) -> tuple[dict, list[dict]]:
         """
         Parse newsletter HTML into structured segments.
         Supports various formats (Substack, Buttondown, generic blogs) by detecting
@@ -506,9 +511,11 @@ class NewsletterProcessor:
 
             # Discord consolidation: keep only AI Discord Recap and skip
             # Discord high-level + detailed sections when configured.
+            # Only applies to AINews source.
             if (
                 Config.DISCORD_CONSOLIDATION_MODE == "recap_only"
                 and current_root_section in {"discord_high_level", "discord_detailed"}
+                and (source_id or "ainews") == "ainews"
             ):
                 continue
 
@@ -545,7 +552,12 @@ class NewsletterProcessor:
                 else:
                     # Lightweight Reddit dedup to reduce repeated bullets while
                     # preserving original Reddit section structure.
-                    if Config.REDDIT_LIGHT_DEDUP and current_root_section == "reddit":
+                    # Only applies to AINews source.
+                    if (
+                        Config.REDDIT_LIGHT_DEDUP
+                        and current_root_section == "reddit"
+                        and (source_id or "ainews") == "ainews"
+                    ):
                         fingerprint = self._fingerprint_for_dedup(text)
                         if fingerprint in reddit_seen_fingerprints:
                             continue
@@ -981,22 +993,33 @@ class NewsletterProcessor:
             "status": "completed" if issue.get("processed_at") else "processing",
         }
 
-    async def fetch_latest_newsletter(self, entry_index: int = 0) -> tuple[str, str, str, str | None] | None:
+    @staticmethod
+    def _is_bundle_entry(title: str) -> bool:
+        """Bundle titles have 3+ comma-separated topics.
+        Example bundle: 'Topic A, Topic B, Topic C, Topic D'
+        Example individual: 'xAI Blasts Off'
         """
-        Fetch a newsletter URL, title, full HTML content, and published date from the RSS feed.
+        return title.count(',') >= 2
+
+    async def fetch_latest_newsletter(self, entry_index: int = 0, source_id: str | None = None) -> tuple[str, str, str, str | None, str] | None:
+        """
+        Fetch a newsletter URL, title, full HTML content, published date, and source from the RSS feed.
 
         Uses the RSS content:encoded field to get complete post HTML.
         If content is truncated (Substack paywall), re-fetches the RSS feed
-        with connect.sid cookie to get full content.
+        with auth cookie to get full content.
 
         Args:
             entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
+            source_id: Newsletter source identifier (defaults to Config.DEFAULT_SOURCE_ID)
 
         Returns:
-            tuple[str, str, str, str | None]: (url, title, html_content, published), or None if fetch fails
+            tuple[str, str, str, str | None, str]: (url, title, html_content, published, source_id), or None if fetch fails
         """
-        rss_url = Config._processing.get("rssUrl", "https://news.smol.ai/rss.xml")
-        logger.info(f"Fetching RSS feed: {rss_url}")
+        source_id = source_id or Config.DEFAULT_SOURCE_ID
+        source_config = Config.get_source_config(source_id)
+        rss_url = source_config["rssUrl"]
+        logger.info(f"Fetching RSS feed for {source_id}: {rss_url}")
 
         try:
             entry = await self._fetch_rss_entry(rss_url, entry_index)
@@ -1004,6 +1027,25 @@ class NewsletterProcessor:
                 return None
 
             latest_url, title, html_content, published = entry
+
+            # Bundle filter: for sources like The Batch, skip individual articles
+            if source_config.get("filterBundleOnly") and not self._is_bundle_entry(title):
+                logger.info(f"Skipping non-bundle entry for {source_id}: {title}")
+                # Try next entries to find a bundle
+                feed_response = await self.http_client.get(rss_url)
+                feed_response.raise_for_status()
+                feed = await asyncio.to_thread(feedparser.parse, feed_response.text)
+                for i in range(len(feed.entries)):
+                    if i == entry_index:
+                        continue
+                    candidate = await self._fetch_rss_entry(rss_url, i)
+                    if candidate and self._is_bundle_entry(candidate[1]):
+                        latest_url, title, html_content, published = candidate
+                        logger.info(f"Found bundle entry for {source_id}: {title}")
+                        break
+                else:
+                    logger.warning(f"No bundle entry found for {source_id}")
+                    return None
 
             # Detect truncated content (Substack paywall appends "Read more" link)
             is_truncated = bool(re.search(
@@ -1013,19 +1055,21 @@ class NewsletterProcessor:
 
             if is_truncated:
                 logger.warning(f"RSS content is truncated (paywall): {latest_url}")
-                connect_sid = os.environ.get("SUBSTACK_CONNECT_SID")
-                if connect_sid:
+                cookie_name = source_config.get("authCookieName")
+                cookie_env = source_config.get("authCookieEnv")
+                cookie_value = os.environ.get(cookie_env) if cookie_env else None
+                if cookie_name and cookie_value:
                     auth_entry = await self._fetch_rss_entry(
-                        rss_url, entry_index, cookies={"connect.sid": connect_sid}
+                        rss_url, entry_index, cookies={cookie_name: cookie_value}
                     )
                     if auth_entry:
                         _, _, html_content, _ = auth_entry
                         logger.info(f"Fetched full content with cookie: {latest_url} ({len(html_content)} chars)")
                 else:
-                    logger.warning("SUBSTACK_CONNECT_SID not set — processing truncated content")
+                    logger.warning(f"Auth cookie not configured for {source_id} — processing truncated content")
 
             logger.info(f"Found latest newsletter: {latest_url} ({len(html_content)} chars)")
-            return (latest_url, title, html_content, published)
+            return (latest_url, title, html_content, published, source_id)
 
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch RSS feed: {e}")

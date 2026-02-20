@@ -184,7 +184,7 @@ async def ask_question_audio(
 
 
 @app.post("/process-latest")
-async def process_latest_newsletter(force: bool = False, entry_index: int = 0):
+async def process_latest_newsletter(force: bool = False, entry_index: int = 0, source: str | None = None):
     """
     Discover and process a newsletter from the RSS feed.
 
@@ -197,42 +197,54 @@ async def process_latest_newsletter(force: bool = False, entry_index: int = 0):
     Args:
         force: If True, bypass the check for existing issue and re-process.
         entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
+        source: Newsletter source ID (e.g. "ainews", "the_batch", "tongyi_weekly").
+                Defaults to the configured default source.
 
     Returns:
         dict: Processing status - 'skipped' if already processed,
               'completed' if new issue found and processed, or 'no_new_issue' if RSS fetch failed
     """
+    # Validate source early
+    source_id = source or Config.DEFAULT_SOURCE_ID
+    try:
+        Config.get_source_config(source_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+
     try:
         # Step 1: Discover newsletter URL and content from RSS
-        result = await processor.fetch_latest_newsletter(entry_index)
+        result = await processor.fetch_latest_newsletter(entry_index, source_id)
 
         if not result:
-            logger.warning("No newsletter found in RSS feed")
+            logger.warning(f"No newsletter found in RSS feed for source: {source_id}")
             return {
                 "status": "no_new_issue",
+                "source": source_id,
                 "message": "Could not fetch latest newsletter from RSS feed"
             }
 
-        latest_url, title, html_content, published = result
+        latest_url, title, html_content, published, source_id = result
 
         # Step 2: Check if already processed
         if not force and processor.check_issue_exists(latest_url):
             logger.info(f"Newsletter already processed: {latest_url}")
             return {
                 "status": "skipped",
+                "source": source_id,
                 "url": latest_url,
                 "message": "Newsletter already processed"
             }
 
         # Step 3: Process new newsletter synchronously
         issue_id = str(uuid.uuid4())
-        logger.info(f"New newsletter found, starting processing: {latest_url}")
+        logger.info(f"New newsletter found, starting processing: {latest_url} (source={source_id})")
 
         # Wait for processing to complete
-        await processor.process_newsletter(latest_url, title, html_content, issue_id, published_at=published)
+        await processor.process_newsletter(latest_url, title, html_content, issue_id, published_at=published, source_id=source_id)
 
         return {
             "status": "completed",
+            "source": source_id,
             "issue_id": issue_id,
             "url": latest_url,
             "message": "New newsletter found and processed successfully"

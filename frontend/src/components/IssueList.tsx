@@ -1,9 +1,10 @@
-import { useState, useEffect, FormEvent } from 'react'
+import { useState, useEffect, useMemo, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchIssues } from '../lib/supabase'
 import { API_URL } from '../lib/api'
 import { Issue } from '../types'
 import { useLanguage } from '../i18n'
+import { NEWSLETTER_SOURCES, getSourceInfo, ALL_SOURCES } from '../lib/sources'
 import Loading from './Loading'
 import './IssueList.css'
 
@@ -14,6 +15,7 @@ export default function IssueList() {
   const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeFilter, setActiveFilter] = useState<string>(ALL_SOURCES)
 
   // Processing state
   const [url, setUrl] = useState('')
@@ -35,6 +37,20 @@ export default function IssueList() {
   useEffect(() => {
     loadIssues()
   }, [])
+
+  const filteredIssues = useMemo(() => {
+    if (activeFilter === ALL_SOURCES) return issues
+    return issues.filter(issue => (issue.source || 'ainews') === activeFilter)
+  }, [issues, activeFilter])
+
+  const sourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const issue of issues) {
+      const src = issue.source || 'ainews'
+      counts[src] = (counts[src] || 0) + 1
+    }
+    return counts
+  }, [issues])
 
   const handleProcess = async (e: FormEvent) => {
     e.preventDefault()
@@ -125,34 +141,69 @@ export default function IssueList() {
         )}
       </section>
 
-      {issues.length === 0 ? (
+      <nav className="source-filters">
+        <button
+          className={`filter-tab ${activeFilter === ALL_SOURCES ? 'active' : ''}`}
+          onClick={() => setActiveFilter(ALL_SOURCES)}
+        >
+          {t('issueList.allSources')} ({issues.length})
+        </button>
+        {Object.values(NEWSLETTER_SOURCES).map(src => (
+          <button
+            key={src.id}
+            className={`filter-tab ${activeFilter === src.id ? 'active' : ''}`}
+            onClick={() => setActiveFilter(src.id)}
+          >
+            {src.name} ({sourceCounts[src.id] || 0})
+          </button>
+        ))}
+      </nav>
+
+      {filteredIssues.length === 0 ? (
         <div className="empty">
-          <p>{t('issueList.noIssues')}</p>
-          <p className="hint">{t('issueList.noIssuesHint')}</p>
+          {issues.length === 0 ? (
+            <>
+              <p>{t('issueList.noIssues')}</p>
+              <p className="hint">{t('issueList.noIssuesHint')}</p>
+            </>
+          ) : (
+            <p>{t('issueList.noIssuesForSource', { source: getSourceInfo(activeFilter).name })}</p>
+          )}
         </div>
       ) : (
         <ul>
-          {issues.map((issue) => (
-            <li key={issue.id} className="issue-item">
-              <Link to={`/player/${issue.id}`}>
-                <h2>{issue.title}</h2>
-                <div className="issue-meta">
-                  <span className="published-date">
-                    {issue.published_at
-                      ? new Date(issue.published_at).toLocaleDateString(t('dates.locale'), {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })
-                      : t('common.unknownDate')}
-                  </span>
-                  <span className={`status ${issue.processed_at ? 'processed' : 'pending'}`}>
-                    {issue.processed_at ? t('issueList.readyToPlay') : t('issueList.processing')}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          ))}
+          {filteredIssues.map((issue) => {
+            const sourceInfo = getSourceInfo(issue.source)
+            return (
+              <li key={issue.id} className="issue-item">
+                <Link to={`/player/${issue.id}`}>
+                  <div className="issue-header">
+                    <h2>{issue.title}</h2>
+                    <span
+                      className="source-badge"
+                      style={{ backgroundColor: sourceInfo.color }}
+                    >
+                      {sourceInfo.name}
+                    </span>
+                  </div>
+                  <div className="issue-meta">
+                    <span className="published-date">
+                      {issue.published_at
+                        ? new Date(issue.published_at).toLocaleDateString(t('dates.locale'), {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })
+                        : t('common.unknownDate')}
+                    </span>
+                    <span className={`status ${issue.processed_at ? 'processed' : 'pending'}`}>
+                      {issue.processed_at ? t('issueList.readyToPlay') : t('issueList.processing')}
+                    </span>
+                  </div>
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

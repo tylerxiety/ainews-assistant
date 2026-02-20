@@ -19,7 +19,9 @@
     "noIssues": "No issues found.",
     "noIssuesHint": "Process a newsletter above to get started.",
     "readyToPlay": "Ready to play",
-    "loadFailed": "Failed to load newsletters"
+    "loadFailed": "Failed to load newsletters",
+    "allSources": "All",
+    "noIssuesForSource": "No issues from {source}."
   },
   "player": {
     "loadingNewsletter": "Loading newsletter...",

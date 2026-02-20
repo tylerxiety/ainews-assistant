@@ -69,6 +69,25 @@ backend:
       redditLightDedup: true
     # RSS Feed URL for newsletter discovery
     rssUrl: "https://news.smol.ai/rss.xml"
+    defaultSource: "ainews"
+    newsletterSources:
+      - id: "ainews"
+        name: "AINews"
+        rssUrl: "https://news.smol.ai/rss.xml"
+        authCookieName: "connect.sid"
+        authCookieEnv: "SUBSTACK_CONNECT_SID"
+        enableConsolidation: true
+
+      - id: "the_batch"
+        name: "The Batch"
+        rssUrl: "https://charonhub.deeplearning.ai/rss/"
+        filterBundleOnly: true
+        enableConsolidation: false
+
+      - id: "tongyi_weekly"
+        name: "Tongyi Weekly"
+        rssUrl: "https://tongyilab.substack.com/feed"
+        enableConsolidation: false
   
   ai:
     models:

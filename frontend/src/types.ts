@@ -5,6 +5,7 @@ export interface Issue {
     url?: string
     summary?: string
     processed_at?: string
+    source?: string | null
 }
 
 export interface SegmentLink {

@@ -59,6 +59,19 @@ class Config:
     )
     REDDIT_LIGHT_DEDUP: bool = _consolidation.get("redditLightDedup", False)
 
+    # === NEWSLETTER SOURCES (from config.yaml) ===
+    _newsletter_sources_raw = _processing.get("newsletterSources", [])
+    NEWSLETTER_SOURCES: dict[str, dict] = {s["id"]: s for s in _newsletter_sources_raw}
+    DEFAULT_SOURCE_ID: str = _processing.get("defaultSource", "ainews")
+
+    @classmethod
+    def get_source_config(cls, source_id: str) -> dict:
+        """Get configuration for a newsletter source by ID."""
+        if source_id not in cls.NEWSLETTER_SOURCES:
+            available = ", ".join(cls.NEWSLETTER_SOURCES.keys())
+            raise ValueError(f"Unknown source: {source_id}. Available: {available}")
+        return cls.NEWSLETTER_SOURCES[source_id]
+
     # === AI MODELS (from config.yaml) ===
     _ai = _backend.get("ai", {})
     _models = _ai.get("models", {})
