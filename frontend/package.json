@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "lint": "eslint src eslint.config.js",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:mobile-layout": "playwright test tests/mobile-layout-fit.spec.ts"
   },
@@ -34,6 +36,7 @@
     "globals": "^16.5.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.4",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.18"
   }
 }

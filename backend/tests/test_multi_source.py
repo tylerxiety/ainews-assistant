@@ -1,13 +1,8 @@
 """Tests for multi-source newsletter support."""
-import asyncio
 import os
-import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-# Add backend to path so we can import modules
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from config import Config
 from processor import NewsletterProcessor
@@ -88,24 +83,9 @@ class TestBundleFilter:
 class TestParseConsolidationGuards:
     """Verify that Discord/Reddit consolidation only applies to ainews source."""
 
-    def _make_processor(self):
-        """Create a processor with mocked dependencies."""
-        with patch("processor.create_client"), \
-             patch("processor.vertexai"), \
-             patch("processor.GenerativeModel"), \
-             patch("processor.texttospeech.TextToSpeechClient"), \
-             patch("processor.storage.Client"):
-            proc = NewsletterProcessor(
-                supabase_url="http://fake",
-                supabase_key="fake",
-                gcp_project_id="fake",
-                gcs_bucket_name="fake",
-            )
-        return proc
-
-    def test_ainews_discord_consolidation_active(self):
+    def test_ainews_discord_consolidation_active(self, processor):
         """Discord consolidation should filter discord_detailed for ainews."""
-        proc = self._make_processor()
+        proc = processor
         html = """
         <article>
             <h1>AI Discord Recap</h1>
@@ -119,9 +99,9 @@ class TestParseConsolidationGuards:
         texts = [s["content_raw"] for s in segments]
         assert not any("detailed content should be skipped" in t.lower() for t in texts)
 
-    def test_the_batch_discord_consolidation_inactive(self):
+    def test_the_batch_discord_consolidation_inactive(self, processor):
         """Discord consolidation should NOT filter for non-ainews sources."""
-        proc = self._make_processor()
+        proc = processor
         html = """
         <article>
             <h1>AI Discord Recap</h1>
@@ -134,9 +114,9 @@ class TestParseConsolidationGuards:
         texts = [s["content_raw"] for s in segments]
         assert any("detailed content should be kept" in t.lower() for t in texts)
 
-    def test_null_source_defaults_to_ainews_behavior(self):
+    def test_null_source_defaults_to_ainews_behavior(self, processor):
         """source_id=None should behave like ainews (consolidation active)."""
-        proc = self._make_processor()
+        proc = processor
         html = """
         <article>
             <h1>AI Discord Recap</h1>
@@ -157,22 +137,9 @@ class TestParseConsolidationGuards:
 class TestSourceContentFiltering:
     """Verify source-specific junk text is filtered out."""
 
-    def _make_processor(self):
-        with patch("processor.create_client"), \
-             patch("processor.vertexai"), \
-             patch("processor.GenerativeModel"), \
-             patch("processor.texttospeech.TextToSpeechClient"), \
-             patch("processor.storage.Client"):
-            return NewsletterProcessor(
-                supabase_url="http://fake",
-                supabase_key="fake",
-                gcp_project_id="fake",
-                gcs_bucket_name="fake",
-            )
-
-    def test_elevenlabs_loader_text_filtered(self):
+    def test_elevenlabs_loader_text_filtered(self, processor):
         """The Batch's ElevenLabs TTS loader text should be stripped."""
-        proc = self._make_processor()
+        proc = processor
         html = """
         <article>
             <p>Loading the Elevenlabs Text to Speech AudioNative Player...</p>
@@ -185,9 +152,9 @@ class TestSourceContentFiltering:
         assert not any("elevenlabs" in t.lower() for t in texts)
         assert any("actual newsletter content" in t.lower() for t in texts)
 
-    def test_want_more_stay_updated_and_trailing_removed(self):
+    def test_want_more_stay_updated_and_trailing_removed(self, processor):
         """Tongyi's 'Want More? Stay Updated' and everything after should be stripped."""
-        proc = self._make_processor()
+        proc = processor
         html = """
         <article>
             <h2>Real Content Topic</h2>
@@ -203,9 +170,9 @@ class TestSourceContentFiltering:
         assert not any("every week" in t.lower() for t in texts)
         assert not any("subscribe" in t.lower() for t in texts)
 
-    def test_want_more_with_emoji_filtered(self):
+    def test_want_more_with_emoji_filtered(self, processor):
         """The emoji variant should also be caught."""
-        proc = self._make_processor()
+        proc = processor
         html = """
         <article>
             <p>Good content that passes the length filter easily here.</p>
@@ -217,9 +184,9 @@ class TestSourceContentFiltering:
         texts = [s["content_raw"] for s in segments]
         assert not any("promotional" in t.lower() for t in texts)
 
-    def test_filtering_does_not_affect_ainews(self):
+    def test_filtering_does_not_affect_ainews(self, processor):
         """AINews content with similar-ish text should not be affected."""
-        proc = self._make_processor()
+        proc = processor
         html = """
         <article>
             <p>Loading a model from HuggingFace is straightforward and easy.</p>
