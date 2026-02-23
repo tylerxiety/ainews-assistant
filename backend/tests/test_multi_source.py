@@ -1,6 +1,7 @@
 """Tests for multi-source newsletter support."""
 import os
-from unittest.mock import AsyncMock, patch
+import re
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -14,9 +15,14 @@ from processor import NewsletterProcessor
 
 class TestConfig:
     def test_newsletter_sources_loaded(self):
-        assert "ainews" in Config.NEWSLETTER_SOURCES
-        assert "the_batch" in Config.NEWSLETTER_SOURCES
-        assert "tongyi_weekly" in Config.NEWSLETTER_SOURCES
+        expected = [
+            "ainews", "the_batch", "tongyi_weekly",
+            "import_ai", "last_week_in_ai", "the_sequence",
+            "interconnects", "ahead_of_ai", "normal_tech", "latent_space",
+        ]
+        for src_id in expected:
+            assert src_id in Config.NEWSLETTER_SOURCES, f"{src_id} not found in NEWSLETTER_SOURCES"
+        assert len(Config.NEWSLETTER_SOURCES) == 10
 
     def test_default_source(self):
         assert Config.DEFAULT_SOURCE_ID == "ainews"
@@ -35,6 +41,36 @@ class TestConfig:
         cfg = Config.get_source_config("tongyi_weekly")
         assert "tongyilab.substack.com" in cfg["rssUrl"]
 
+    def test_get_source_config_import_ai(self):
+        cfg = Config.get_source_config("import_ai")
+        assert "jack-clark.net" in cfg["rssUrl"]
+
+    def test_get_source_config_last_week_in_ai(self):
+        cfg = Config.get_source_config("last_week_in_ai")
+        assert "lastweekin.ai" in cfg["rssUrl"]
+        assert cfg["titleFilter"] == "^Last Week in AI"
+
+    def test_get_source_config_the_sequence(self):
+        cfg = Config.get_source_config("the_sequence")
+        assert "thesequence.substack.com" in cfg["rssUrl"]
+
+    def test_get_source_config_interconnects(self):
+        cfg = Config.get_source_config("interconnects")
+        assert "interconnects.ai" in cfg["rssUrl"]
+
+    def test_get_source_config_ahead_of_ai(self):
+        cfg = Config.get_source_config("ahead_of_ai")
+        assert "sebastianraschka.com" in cfg["rssUrl"]
+
+    def test_get_source_config_normal_tech(self):
+        cfg = Config.get_source_config("normal_tech")
+        assert "normaltech.ai" in cfg["rssUrl"]
+
+    def test_get_source_config_latent_space(self):
+        cfg = Config.get_source_config("latent_space")
+        assert "latent.space" in cfg["rssUrl"]
+        assert cfg["titleFilter"] == "^(?!\\[AINews\\])"
+
     def test_get_source_config_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown source"):
             Config.get_source_config("nonexistent")
@@ -44,6 +80,77 @@ class TestConfig:
             assert "id" in cfg, f"{src_id} missing 'id'"
             assert "name" in cfg, f"{src_id} missing 'name'"
             assert "rssUrl" in cfg, f"{src_id} missing 'rssUrl'"
+
+
+# ────────────────────────────────────────────
+# Title filter tests
+# ────────────────────────────────────────────
+
+class TestTitleFilter:
+    """Verify titleFilter regex patterns work correctly."""
+
+    def test_last_week_in_ai_matches_newsletter(self):
+        pattern = Config.get_source_config("last_week_in_ai")["titleFilter"]
+        assert re.search(pattern, "Last Week in AI #335")
+
+    def test_last_week_in_ai_skips_podcast(self):
+        pattern = Config.get_source_config("last_week_in_ai")["titleFilter"]
+        assert not re.search(pattern, "LWiAI Podcast #234")
+
+    def test_latent_space_matches_essay(self):
+        pattern = Config.get_source_config("latent_space")["titleFilter"]
+        assert re.search(pattern, "Bitter Lessons in Venture")
+
+    def test_latent_space_matches_interview(self):
+        pattern = Config.get_source_config("latent_space")["titleFilter"]
+        assert re.search(pattern, "Building AI Agents with LangChain")
+
+    def test_latent_space_skips_ainews(self):
+        pattern = Config.get_source_config("latent_space")["titleFilter"]
+        assert not re.search(pattern, "[AINews] The Custom ASIC Thesis")
+
+    @pytest.mark.asyncio
+    async def test_fetch_title_filtered_skips_non_matching(self, processor):
+        """Integration: fetch_latest_newsletter with titleFilter skips non-matching entries."""
+        mock_entry_podcast = MagicMock()
+        mock_entry_podcast.get = lambda k, d="": {
+            "title": "LWiAI Podcast #234",
+            "link": "https://lastweekin.ai/p/podcast-234",
+        }.get(k, d)
+
+        mock_entry_newsletter = MagicMock()
+        mock_entry_newsletter.get = lambda k, d="": {
+            "title": "Last Week in AI #335",
+            "link": "https://lastweekin.ai/p/last-week-335",
+        }.get(k, d)
+        mock_entry_newsletter.content = [{"value": "<p>Newsletter content here</p>"}]
+        mock_entry_newsletter.get = lambda k, d="": {
+            "title": "Last Week in AI #335",
+            "link": "https://lastweekin.ai/p/last-week-335",
+            "published": "Mon, 01 Jan 2024 00:00:00 GMT",
+            "content": mock_entry_newsletter.content,
+            "summary": "<p>Newsletter content here</p>",
+        }.get(k, d)
+
+        mock_feed = MagicMock()
+        mock_feed.entries = [mock_entry_podcast, mock_entry_newsletter]
+
+        mock_response = MagicMock()
+        mock_response.text = "<rss>fake</rss>"
+        mock_response.raise_for_status = MagicMock()
+
+        proc = processor
+        proc.http_client = AsyncMock()
+        proc.http_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("processor.feedparser.parse", return_value=mock_feed):
+            result = await proc.fetch_latest_newsletter(entry_index=0, source_id="last_week_in_ai")
+
+        assert result is not None
+        url, title, _, _, source = result
+        assert "last-week-335" in url
+        assert title == "Last Week in AI #335"
+        assert source == "last_week_in_ai"
 
 
 # ────────────────────────────────────────────

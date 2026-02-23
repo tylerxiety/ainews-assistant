@@ -1058,6 +1058,28 @@ class NewsletterProcessor:
                 else:
                     logger.warning(f"No bundle entry at index {entry_index} for {source_id} (found {bundle_count} bundles)")
                     return None
+            elif source_config.get("titleFilter"):
+                # Scan feed for the Nth entry whose title matches the regex
+                title_pattern = source_config["titleFilter"]
+                feed_response = await self.http_client.get(rss_url)
+                feed_response.raise_for_status()
+                feed = await asyncio.to_thread(feedparser.parse, feed_response.text)
+
+                match_count = 0
+                for raw_entry in feed.entries:
+                    if not re.search(title_pattern, raw_entry.get("title", "")):
+                        continue
+                    if match_count == entry_index:
+                        entry = self._extract_entry_data(raw_entry)
+                        if not entry:
+                            return None
+                        latest_url, title, html_content, published = entry
+                        logger.info(f"Found title-filtered entry #{entry_index} for {source_id}: {title}")
+                        break
+                    match_count += 1
+                else:
+                    logger.warning(f"No title-filtered entry at index {entry_index} for {source_id} (found {match_count} matches)")
+                    return None
             else:
                 entry = await self._fetch_rss_entry(rss_url, entry_index)
                 if not entry:

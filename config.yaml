@@ -88,6 +88,43 @@ backend:
         name: "Tongyi Weekly"
         rssUrl: "https://tongyilab.substack.com/feed"
         enableConsolidation: false
+
+      - id: "import_ai"
+        name: "Import AI"
+        rssUrl: "https://jack-clark.net/feed/"
+        enableConsolidation: false
+
+      - id: "last_week_in_ai"
+        name: "Last Week in AI"
+        rssUrl: "https://lastweekin.ai/feed"
+        titleFilter: "^Last Week in AI"
+        enableConsolidation: false
+
+      - id: "the_sequence"
+        name: "TheSequence"
+        rssUrl: "https://thesequence.substack.com/feed"
+        enableConsolidation: false
+
+      - id: "interconnects"
+        name: "Interconnects"
+        rssUrl: "https://www.interconnects.ai/feed"
+        enableConsolidation: false
+
+      - id: "ahead_of_ai"
+        name: "Ahead of AI"
+        rssUrl: "https://magazine.sebastianraschka.com/feed"
+        enableConsolidation: false
+
+      - id: "normal_tech"
+        name: "AI as Normal Tech"
+        rssUrl: "https://www.normaltech.ai/feed"
+        enableConsolidation: false
+
+      - id: "latent_space"
+        name: "Latent Space"
+        rssUrl: "https://www.latent.space/feed"
+        titleFilter: "^(?!\\[AINews\\])"
+        enableConsolidation: false
   
   ai:
     models:
