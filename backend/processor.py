@@ -461,6 +461,8 @@ class NewsletterProcessor:
         current_root_section = "other"
         reddit_seen_fingerprints: set[str] = set()
         hit_trailing_promo = False
+        # Import AI: first topic appears before any *** divider
+        import_ai_after_divider = source_id == "import_ai"
         
         # 2. Iterate through elements to build segments
         # We want to segment by Headers (H1-H4)
@@ -514,6 +516,12 @@ class NewsletterProcessor:
                 hit_trailing_promo = True
                 continue
 
+            # Import AI: <p>***</p> is a topic divider — skip it and
+            # flag that the next <strong>-led paragraph is a topic header.
+            if element.name == "p" and text == "***" and source_id == "import_ai":
+                import_ai_after_divider = True
+                continue
+
             # Track top-level section boundaries so we can apply targeted
             # consolidation rules without affecting Twitter content.
             if element.name == "h1":
@@ -556,7 +564,20 @@ class NewsletterProcessor:
                     )
                     if strong and strong_text == text:
                         is_header_like = True
-                
+                    # Import AI: after a *** divider, the next <p> starting
+                    # with <strong> is the topic header.  Emit the strong text
+                    # as topic_header and let the full paragraph fall through
+                    # as an item below.
+                    elif import_ai_after_divider and strong and strong_text != text:
+                        first_child = next(
+                            (c for c in element.children if getattr(c, "name", None)),
+                            None,
+                        )
+                        if first_child and first_child.name == "strong":
+                            add_segment(strong_text, "topic_header")
+                            import_ai_after_divider = False
+                            # Fall through to emit full text as item below
+
                 if is_header_like:
                     add_segment(text, "topic_header")
                 else:

@@ -361,3 +361,83 @@ class TestProcessLatestEndpoint:
             assert resp.status_code == 200
             body = resp.json()
             assert body["source"] == "ainews"
+
+
+# ────────────────────────────────────────────
+# Import AI *** section divider parsing
+# ────────────────────────────────────────────
+
+class TestImportAISectionDividers:
+    """Import AI uses <p>***</p> to separate topics and <strong>-led <p> for headers."""
+
+    def test_asterisk_divider_creates_topic_groups(self, processor):
+        """Each *** divider should start a new topic group from the next <strong> header."""
+        proc = processor
+        html = """
+        <article>
+            <p>Welcome to Import AI, a newsletter about artificial intelligence.</p>
+            <p><strong>First topic title:</strong><em>…Subtitle one…</em>Body of the first topic paragraph.</p>
+            <p><strong>Sub-heading one:</strong> Detail under first topic.</p>
+            <p>***</p>
+            <p><strong>Second topic title:</strong><em>…Subtitle two…</em>Body of the second topic paragraph.</p>
+            <p><strong>Sub-heading two:</strong> Detail under second topic.</p>
+            <p>***</p>
+            <p><strong>Tech Tales:</strong></p>
+            <p>A short fiction story about AI futures and possibilities.</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="import_ai")
+
+        headers = [s["content_raw"] for s in segments if s["segment_type"] == "topic_header"]
+        items = [s["content_raw"] for s in segments if s["segment_type"] == "item"]
+
+        # Three topic headers extracted from strong text
+        assert "First topic title:" in headers
+        assert "Second topic title:" in headers
+        assert "Tech Tales:" in headers
+
+        # *** itself should NOT appear in any segment
+        all_text = [s["content_raw"] for s in segments]
+        assert "***" not in all_text
+
+        # Full paragraph text emitted as items
+        assert any("Body of the first topic" in t for t in items)
+        assert any("Body of the second topic" in t for t in items)
+
+    def test_groups_have_correct_labels(self, processor):
+        """Grouped segments should produce TOC-friendly labels."""
+        proc = processor
+        html = """
+        <article>
+            <p><strong>AI policy update:</strong><em>…New regulation…</em>The EU released new guidelines.</p>
+            <p>More details about the regulation are discussed below.</p>
+            <p>***</p>
+            <p><strong>Robot breakthroughs:</strong><em>…Walking robots…</em>A team demonstrated a new robot.</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="import_ai")
+        groups = proc._group_segments(segments)
+
+        labels = [g["label"] for g in groups]
+        assert "AI policy update:" in labels
+        assert "Robot breakthroughs:" in labels
+
+        # First group should have items
+        ai_group = next(g for g in groups if g["label"] == "AI policy update:")
+        assert len(ai_group["segments"]) >= 2  # paragraph body + "More details"
+
+    def test_non_import_ai_ignores_asterisks(self, processor):
+        """For non-import_ai sources, *** should not trigger topic splitting."""
+        proc = processor
+        html = """
+        <article>
+            <p>Some content that is long enough to pass the filter.</p>
+            <p>***</p>
+            <p><strong>Bold text:</strong><em>Subtitle</em>Body text for this paragraph.</p>
+        </article>
+        """
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="the_batch")
+
+        headers = [s for s in segments if s["segment_type"] == "topic_header"]
+        # No topic headers should be detected from the strong-led paragraph
+        assert len(headers) == 0
