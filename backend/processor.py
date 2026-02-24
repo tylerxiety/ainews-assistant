@@ -792,7 +792,8 @@ class NewsletterProcessor:
         return result
 
     async def _generate_audio(
-        self, text: str, issue_id: str, group_index: int, segment_index: int, language: str = "en"
+        self, text: str, issue_id: str, group_index: int, segment_index: int, language: str = "en",
+        max_retries: int = 3,
     ) -> tuple[str, int]:
         """
         Generate audio using Google Cloud TTS.
@@ -803,6 +804,7 @@ class NewsletterProcessor:
             group_index: Group order index (for organization)
             segment_index: Segment order index (within group)
             language: Language code ("en" or "zh")
+            max_retries: Maximum number of retry attempts for transient failures
 
         Returns:
             tuple: (gcs_url, duration_ms)
@@ -818,26 +820,50 @@ class NewsletterProcessor:
             name=voice_name,
         )
 
-        # Generate audio
-        response = await asyncio.to_thread(
-            self.tts_client.synthesize_speech,
-            input=synthesis_input,
-            voice=voice,
-            audio_config=self.audio_config,
-        )
+        # Generate audio with retry
+        last_exc = None
+        for attempt in range(max_retries):
+            try:
+                response = await asyncio.to_thread(
+                    self.tts_client.synthesize_speech,
+                    input=synthesis_input,
+                    voice=voice,
+                    audio_config=self.audio_config,
+                )
+                break
+            except Exception as e:
+                last_exc = e
+                if attempt < max_retries - 1:
+                    delay = 2 ** attempt
+                    logger.warning("TTS call failed (attempt %d/%d), retrying in %ds: %s",
+                                   attempt + 1, max_retries, delay, e)
+                    await asyncio.sleep(delay)
+        else:
+            raise last_exc
 
-        # Upload to GCS
-        # Name: issue_id/group_{group_index}_segment_{segment_index}[_zh].mp3
+        # Upload to GCS with retry
         suffix = "_zh" if language == "zh" else ""
         blob_name = f"{issue_id}/group_{group_index}_segment_{segment_index}{suffix}.mp3"
         bucket = self.storage_client.bucket(self.gcs_bucket_name)
         blob = bucket.blob(blob_name)
 
-        await asyncio.to_thread(
-            blob.upload_from_string,
-            response.audio_content,
-            content_type="audio/mpeg",
-        )
+        for attempt in range(max_retries):
+            try:
+                await asyncio.to_thread(
+                    blob.upload_from_string,
+                    response.audio_content,
+                    content_type="audio/mpeg",
+                )
+                break
+            except Exception as e:
+                last_exc = e
+                if attempt < max_retries - 1:
+                    delay = 2 ** attempt
+                    logger.warning("GCS upload failed (attempt %d/%d), retrying in %ds: %s",
+                                   attempt + 1, max_retries, delay, e)
+                    await asyncio.sleep(delay)
+        else:
+            raise last_exc
 
         # Make blob public or generate signed URL
         blob.make_public()
@@ -1020,7 +1046,7 @@ class NewsletterProcessor:
 
         return {
             "issue": issue,
-            "segment_count": len(segments.data) if segments.data else 0,
+            "segment_count": segments.count if segments.count is not None else 0,
             "status": "completed" if issue.get("processed_at") else "processing",
         }
 

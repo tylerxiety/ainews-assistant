@@ -952,10 +952,6 @@ export default function Player() {
     }
   }
 
-
-  // ... existing imports ...
-
-  // ... inside component ...
   const lastTimeUpdateRef = useRef(0)
 
   const handleTimeUpdate = useCallback(() => {

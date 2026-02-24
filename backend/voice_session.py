@@ -373,15 +373,31 @@ class VoiceSession:
         self._flush_task = None
 
     async def _forward_gemini(self, websocket: WebSocket) -> None:
+        max_consecutive_failures = 10
+        consecutive_failures = 0
         while not self._stop_event.is_set():
             session = await self._ensure_session()
             try:
                 async for message in session.receive():
+                    consecutive_failures = 0
                     await self._handle_server_message(message, websocket)
             except Exception:
-                logger.warning("Gemini Live receive loop failed, reconnecting", exc_info=True)
+                consecutive_failures += 1
+                if consecutive_failures >= max_consecutive_failures:
+                    logger.error(
+                        "Gemini Live reconnect failed %d times consecutively, giving up",
+                        consecutive_failures,
+                    )
+                    await websocket.send_text(
+                        json.dumps({"type": "error", "message": "Voice session lost connection"})
+                    )
+                    return
+                logger.warning(
+                    "Gemini Live receive loop failed (attempt %d/%d), reconnecting",
+                    consecutive_failures, max_consecutive_failures, exc_info=True,
+                )
                 await self._reset_session()
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(min(0.5 * consecutive_failures, 5))
 
     async def _forward_client_audio(self) -> None:
         while not self._stop_event.is_set():

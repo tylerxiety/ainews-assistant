@@ -97,6 +97,23 @@ class Config:
             return cls.TTS_VOICE_NAME_ZH, cls.TTS_LANGUAGE_CODE_ZH
         return cls.TTS_VOICE_NAME_EN, cls.TTS_LANGUAGE_CODE_EN
 
+    @classmethod
+    def validate(cls) -> None:
+        """Validate that all required environment variables are set. Call at startup."""
+        missing = []
+        for var_name, env_name in [
+            ("SUPABASE_URL", "SUPABASE_URL"),
+            ("SUPABASE_KEY", "SUPABASE_SERVICE_KEY"),
+            ("GCP_PROJECT_ID", "GCP_PROJECT_ID"),
+            ("GCS_BUCKET_NAME", "GCS_BUCKET_NAME"),
+        ]:
+            if not getattr(cls, var_name):
+                missing.append(env_name)
+        if missing:
+            raise EnvironmentError(
+                f"Missing required environment variables: {', '.join(missing)}"
+            )
+
     # === VOICE MODE (from config.yaml) ===
     _voice_mode = _raw_config.get("voiceMode", {})
     _voice_vad = _voice_mode.get("vadSensitivity", {})

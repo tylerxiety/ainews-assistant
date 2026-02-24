@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
+    Config.validate()
     logger.info("Newsletter Audio Processor starting up")
     yield
     await processor.close()

@@ -58,6 +58,7 @@ jobs:
           GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},\
           GCP_REGION=us-central1,\
           GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }},\
+          SUBSTACK_CONNECT_SID=${{ secrets.SUBSTACK_CONNECT_SID }},\
           ALLOWED_ORIGINS=https://ainews-assistant.vercel.app" \
             --timeout 3600 \
             --memory 2Gi \
