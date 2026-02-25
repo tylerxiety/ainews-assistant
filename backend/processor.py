@@ -1212,25 +1212,35 @@ class NewsletterProcessor:
 
         return self._extract_entry_data(feed.entries[entry_index])
 
-    def check_issue_exists(self, url: str) -> bool:
+    def check_issue_exists(self, url: str, title: str | None = None, source: str | None = None) -> bool:
         """
-        Check if an issue with the given URL already exists in the database.
-        
-        Used to prevent duplicate processing when Cloud Scheduler triggers
-        and the newsletter hasn't been updated yet.
+        Check if an issue already exists in the database.
+
+        Checks by exact URL first, then by source + title to catch cases where
+        a newsletter author renames the URL slug after publication.
 
         Args:
             url: Newsletter URL to check
+            title: Newsletter title (for source+title dedup)
+            source: Newsletter source ID (for source+title dedup)
 
         Returns:
             bool: True if issue already exists, False otherwise
         """
         try:
             result = self.supabase.table("issues").select("id").eq("url", url).execute()
-            exists = len(result.data) > 0
-            if exists:
+            if result.data:
                 logger.info(f"Issue already exists for URL: {url}")
-            return exists
+                return True
+
+            # Also check by source + title to catch renamed slugs
+            if title and source:
+                result = self.supabase.table("issues").select("id, url").eq("source", source).eq("title", title).execute()
+                if result.data:
+                    logger.info(f"Issue already exists with same source+title (slug may have changed): {result.data[0]['url']} -> {url}")
+                    return True
+
+            return False
         except Exception as e:
             logger.error(f"Error checking issue existence: {e}")
             # Return False to allow processing attempt (will be caught by upsert)

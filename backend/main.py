@@ -226,8 +226,8 @@ async def process_latest_newsletter(force: bool = False, entry_index: int = 0, s
 
         latest_url, title, html_content, published, source_id = result
 
-        # Step 2: Check if already processed
-        if not force and processor.check_issue_exists(latest_url):
+        # Step 2: Check if already processed (by URL or source+title)
+        if not force and processor.check_issue_exists(latest_url, title=title, source=source_id):
             logger.info(f"Newsletter already processed: {latest_url}")
             return {
                 "status": "skipped",
