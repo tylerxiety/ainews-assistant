@@ -41,23 +41,78 @@
 }
 
 .issue-item {
+  display: flex;
   margin-bottom: 12px;
-}
-
-.issue-item a {
-  display: block;
-  padding: 16px 20px;
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  text-decoration: none;
-  color: inherit;
-  transition: background 0.2s, border-color 0.2s;
+  transition: border-color 0.2s;
 }
 
-.issue-item a:hover {
-  background: var(--color-bg-elevated);
+.issue-item:hover {
   border-color: var(--color-border-input);
+}
+
+.issue-item .issue-link {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 16px 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.2s;
+  border-radius: 8px 0 0 8px;
+}
+
+.issue-item .issue-link:only-child {
+  border-radius: 8px;
+}
+
+.issue-item .issue-link:hover {
+  background: var(--color-bg-elevated);
+}
+
+/* Download button */
+.download-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 44px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0 8px 8px 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.download-btn:hover:not(:disabled) {
+  color: var(--color-accent);
+  background: var(--color-bg-elevated);
+}
+
+.download-btn:disabled {
+  cursor: default;
+}
+
+.download-btn.done {
+  color: var(--color-accent);
+}
+
+.download-btn.error {
+  color: var(--color-error);
+}
+
+.download-btn .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .issue-item h2 {
@@ -293,7 +348,7 @@
     margin-bottom: 20px;
   }
 
-  .issue-item a {
+  .issue-item .issue-link {
     padding: 14px 16px;
   }
 

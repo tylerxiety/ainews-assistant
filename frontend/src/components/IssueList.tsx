@@ -5,8 +5,54 @@ import { API_URL } from '../lib/api'
 import { Issue } from '../types'
 import { useLanguage } from '../i18n'
 import { NEWSLETTER_SOURCES, getSourceInfo, ALL_SOURCES } from '../lib/sources'
+import { useOfflineDownload } from '../hooks/useOfflineDownload'
+import { Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import Loading from './Loading'
 import './IssueList.css'
+
+function DownloadButton({ issueId }: { issueId: string }) {
+  const { t } = useLanguage()
+  const { status, download } = useOfflineDownload(issueId)
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (status === 'idle' || status === 'error') {
+      download()
+    }
+  }
+
+  let icon
+  let title: string
+  switch (status) {
+    case 'downloading':
+      icon = <Loader2 size={18} className="spin" />
+      title = t('issueList.downloading')
+      break
+    case 'done':
+      icon = <CheckCircle2 size={18} />
+      title = t('issueList.downloaded')
+      break
+    case 'error':
+      icon = <AlertCircle size={18} />
+      title = t('issueList.downloadError')
+      break
+    default:
+      icon = <Download size={18} />
+      title = t('issueList.download')
+  }
+
+  return (
+    <button
+      className={`download-btn ${status}`}
+      onClick={handleClick}
+      title={title}
+      disabled={status === 'downloading'}
+    >
+      {icon}
+    </button>
+  )
+}
 
 type ProcessingStatus = 'idle' | 'processing' | 'done' | 'error'
 
@@ -176,7 +222,7 @@ export default function IssueList() {
             const sourceInfo = getSourceInfo(issue.source)
             return (
               <li key={issue.id} className="issue-item">
-                <Link to={`/player/${issue.id}`}>
+                <Link to={`/player/${issue.id}`} className="issue-link">
                   <div className="issue-header">
                     <h2>{issue.title}</h2>
                     <span
@@ -201,6 +247,7 @@ export default function IssueList() {
                     </span>
                   </div>
                 </Link>
+                {issue.processed_at && <DownloadButton issueId={issue.id} />}
               </li>
             )
           })}

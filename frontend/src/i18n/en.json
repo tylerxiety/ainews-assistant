@@ -21,7 +21,11 @@
     "readyToPlay": "Ready to play",
     "loadFailed": "Failed to load newsletters",
     "allSources": "All",
-    "noIssuesForSource": "No issues from {source}."
+    "noIssuesForSource": "No issues from {source}.",
+    "download": "Save for offline reading",
+    "downloading": "Saving...",
+    "downloaded": "Available offline",
+    "downloadError": "Save failed"
   },
   "player": {
     "loadingNewsletter": "Loading newsletter...",

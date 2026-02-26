@@ -38,8 +38,6 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Work around Workbox terser renderChunk early-exit on current Node/toolchain.
-        mode: 'development',
         disableDevLogs: true,
         skipWaiting: true,
         clientsClaim: true,
@@ -52,8 +50,8 @@ export default defineConfig({
             options: {
               cacheName: 'supabase-cache',
               expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 // 1 hour
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
               }
             }
           },

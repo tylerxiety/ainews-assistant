@@ -21,7 +21,11 @@
     "readyToPlay": "可以播放",
     "loadFailed": "加载简报失败",
     "allSources": "全部",
-    "noIssuesForSource": "暂无来自 {source} 的简报。"
+    "noIssuesForSource": "暂无来自 {source} 的简报。",
+    "download": "保存离线阅读",
+    "downloading": "保存中...",
+    "downloaded": "已可离线阅读",
+    "downloadError": "保存失败"
   },
   "player": {
     "loadingNewsletter": "加载简报中...",
