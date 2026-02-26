@@ -460,6 +460,7 @@ class NewsletterProcessor:
         order_index = 0
         current_root_section = "other"
         reddit_seen_fingerprints: set[str] = set()
+        seen_header_fingerprints: set[str] = set()
         hit_trailing_promo = False
         # Import AI: first topic appears before any *** divider
         import_ai_after_divider = source_id == "import_ai"
@@ -544,6 +545,12 @@ class NewsletterProcessor:
                 continue
 
             if element.name in header_tags:
+                # Deduplicate headers: skip if we've already seen this exact heading
+                header_fp = self._fingerprint_for_dedup(text)
+                if header_fp in seen_header_fingerprints:
+                    continue
+                seen_header_fingerprints.add(header_fp)
+
                 # Only known recap sections (AI Twitter/Reddit/Discord Recap)
                 # become section dividers; all other headers are topic groups.
                 if element.name == "h1" and self._classify_root_section(text) != "other":

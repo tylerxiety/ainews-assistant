@@ -68,6 +68,73 @@ class TestClassifyRootSection:
 # _group_segments (instance method)
 # ────────────────────────────────────────────
 
+class TestParseNewsletterDedup:
+    """Regression tests: duplicate headers in source HTML should be deduplicated."""
+
+    def test_duplicate_section_headers_deduped(self, processor):
+        """If the HTML contains the same h1 section header multiple times,
+        only one section_header segment should be emitted per unique heading."""
+        html = """
+        <article>
+            <h1>Everyone launching everything everywhere all at once.</h1>
+            <p>Some intro paragraph with enough text to pass the length filter.</p>
+            <h1>AI Twitter Recap</h1>
+            <p>Some twitter content that is long enough to be included.</p>
+            <h1>AI Twitter Recap</h1>
+            <p>Duplicate twitter section content that is also long enough.</p>
+            <h1>AI Twitter Recap</h1>
+            <p>Third duplicate twitter section that repeats the header again.</p>
+        </article>
+        """
+        _, segments = processor._parse_newsletter(html, "https://example.com/test")
+        section_headers = [s for s in segments if s["segment_type"] == "section_header"]
+        section_labels = [s["content_raw"] for s in section_headers]
+        # "AI Twitter Recap" should appear only once as a section header
+        assert section_labels.count("AI Twitter Recap") == 1
+
+    def test_duplicate_topic_headers_deduped(self, processor):
+        """If the HTML contains the same topic header multiple times,
+        only one topic_header segment should be emitted per unique heading."""
+        html = """
+        <article>
+            <h2>Frontier model ecosystem: Qwen 3.5</h2>
+            <p>Content about Qwen 3.5 that is long enough to pass filter.</p>
+            <h2>Frontier model ecosystem: Qwen 3.5</h2>
+            <p>Duplicate content about Qwen that is also long enough here.</p>
+            <h2>Frontier model ecosystem: Qwen 3.5</h2>
+            <p>Triple duplicate Qwen content with sufficient length to pass.</p>
+        </article>
+        """
+        _, segments = processor._parse_newsletter(html, "https://example.com/test")
+        topic_headers = [s for s in segments if s["segment_type"] == "topic_header"]
+        topic_labels = [s["content_raw"] for s in topic_headers]
+        # Same topic header should appear only once
+        assert topic_labels.count("Frontier model ecosystem: Qwen 3.5") == 1
+
+    def test_groups_not_duplicated_after_dedup(self, processor):
+        """End-to-end: parse + group should not produce duplicate TOC entries."""
+        html = """
+        <article>
+            <h1>Everyone launching everything everywhere all at once.</h1>
+            <p>Intro paragraph with enough content to pass the length filter.</p>
+            <h1>AI Twitter Recap</h1>
+            <h2>Frontier model ecosystem: Qwen 3.5</h2>
+            <p>Content about Qwen that is long enough to be included as an item.</p>
+            <h1>AI Twitter Recap</h1>
+            <h2>Frontier model ecosystem: Qwen 3.5</h2>
+            <p>Duplicate content about Qwen that is also long enough to include.</p>
+            <h1>AI Twitter Recap</h1>
+            <h2>Frontier model ecosystem: Qwen 3.5</h2>
+            <p>Third duplicate content about Qwen sufficient to pass filter here.</p>
+        </article>
+        """
+        _, segments = processor._parse_newsletter(html, "https://example.com/test")
+        groups = processor._group_segments(segments)
+        group_labels = [g["label"] for g in groups]
+        assert group_labels.count("AI Twitter Recap") == 1
+        assert group_labels.count("Frontier model ecosystem: Qwen 3.5") == 1
+
+
 class TestGroupSegments:
     def test_basic_grouping(self, processor):
         segments = [
