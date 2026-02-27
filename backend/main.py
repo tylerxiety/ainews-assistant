@@ -184,36 +184,14 @@ async def ask_question_audio(
 
 
 
-@app.post("/process-latest")
-async def process_latest_newsletter(force: bool = False, entry_index: int = 0, source: str | None = None):
-    """
-    Discover and process a newsletter from the RSS feed.
-
-    This endpoint is designed to be called by Cloud Scheduler every 6 hours.
-    It automatically:
-    1. Fetches the RSS feed to find the newsletter URL
-    2. Checks if this issue has already been processed
-    3. If new, triggers processing synchronously (to ensure completion on Cloud Run)
-
-    Args:
-        force: If True, bypass the check for existing issue and re-process.
-        entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
-        source: Newsletter source ID (e.g. "ainews", "the_batch", "tongyi_weekly").
-                Defaults to the configured default source.
-
-    Returns:
-        dict: Processing status - 'skipped' if already processed,
-              'completed' if new issue found and processed, or 'no_new_issue' if RSS fetch failed
-    """
-    # Validate source early
-    source_id = source or Config.DEFAULT_SOURCE_ID
+async def _process_single_source(source_id: str, force: bool = False, entry_index: int = 0) -> dict:
+    """Process a single newsletter source. Returns a result dict."""
     try:
         Config.get_source_config(source_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        return {"status": "error", "source": source_id, "message": str(e)}
 
     try:
-        # Step 1: Discover newsletter URL and content from RSS
         result = await processor.fetch_latest_newsletter(entry_index, source_id)
 
         if not result:
@@ -226,7 +204,6 @@ async def process_latest_newsletter(force: bool = False, entry_index: int = 0, s
 
         latest_url, title, html_content, published, source_id = result
 
-        # Step 2: Check if already processed (by URL or source+title)
         if not force and processor.check_issue_exists(latest_url, title=title, source=source_id):
             logger.info(f"Newsletter already processed: {latest_url}")
             return {
@@ -236,11 +213,9 @@ async def process_latest_newsletter(force: bool = False, entry_index: int = 0, s
                 "message": "Newsletter already processed"
             }
 
-        # Step 3: Process new newsletter synchronously
         issue_id = str(uuid.uuid4())
         logger.info(f"New newsletter found, starting processing: {latest_url} (source={source_id})")
 
-        # Wait for processing to complete
         await processor.process_newsletter(latest_url, title, html_content, issue_id, published_at=published, source_id=source_id)
 
         return {
@@ -251,8 +226,43 @@ async def process_latest_newsletter(force: bool = False, entry_index: int = 0, s
             "message": "New newsletter found and processed successfully"
         }
     except Exception as e:
-        logger.error(f"Error in process_latest_newsletter: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error") from None
+        logger.error(f"Error processing source {source_id}: {str(e)}", exc_info=True)
+        return {"status": "error", "source": source_id, "message": str(e)}
+
+
+@app.post("/process-latest")
+async def process_latest_newsletter(force: bool = False, entry_index: int = 0, source: str | None = None):
+    """
+    Discover and process a single newsletter source from its RSS feed.
+
+    Args:
+        force: If True, bypass the check for existing issue and re-process.
+        entry_index: RSS feed entry index (0 = newest, 1 = second newest, etc.)
+        source: Newsletter source ID. Defaults to the configured default source.
+    """
+    source_id = source or Config.DEFAULT_SOURCE_ID
+    result = await _process_single_source(source_id, force, entry_index)
+    if result["status"] == "error" and "Unknown source" in result.get("message", ""):
+        raise HTTPException(status_code=400, detail=result["message"])
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    return result
+
+
+@app.post("/process-all-latest")
+async def process_all_latest(force: bool = False):
+    """
+    Process all newsletter sources sequentially.
+
+    Designed to be called by a single Cloud Scheduler job. Iterates through
+    all sources defined in config.yaml so adding/removing a source requires
+    only a config change and redeploy — no scheduler updates needed.
+    """
+    results = {}
+    for source_id in Config.NEWSLETTER_SOURCES:
+        logger.info(f"Processing source: {source_id}")
+        results[source_id] = await _process_single_source(source_id, force)
+    return {"results": results}
 
 
 @app.get("/issues/{issue_id}")
