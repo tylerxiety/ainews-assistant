@@ -872,9 +872,9 @@ class NewsletterProcessor:
         else:
             raise last_exc
 
-        # Make blob public or generate signed URL
-        blob.make_public()
-        audio_url = blob.public_url
+        # Uniform bucket-level access is enabled, so skip per-object ACL.
+        # Public read is granted at the bucket level.
+        audio_url = f"https://storage.googleapis.com/{blob.bucket.name}/{blob.name}"
 
         # Extract actual duration from MP3 metadata
         audio_file = io.BytesIO(response.audio_content)
@@ -1013,8 +1013,7 @@ class NewsletterProcessor:
                 content_type="audio/mpeg",
             )
 
-            response_blob.make_public()
-            audio_url = response_blob.public_url
+            audio_url = f"https://storage.googleapis.com/{response_blob.bucket.name}/{response_blob.name}"
 
             return answer_text, audio_url, transcript
 
