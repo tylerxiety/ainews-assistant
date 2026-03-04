@@ -135,6 +135,28 @@ class TestParseNewsletterDedup:
         assert group_labels.count("Frontier model ecosystem: Qwen 3.5") == 1
 
 
+class TestParseNewsletterContainerDetection:
+    """Regression: content container class matching must be exact, not substring."""
+
+    def test_footnote_content_not_matched_as_content(self, processor):
+        """A div with class 'footnote-content' must NOT be selected as the
+        content container when looking for class 'content'.  The parser should
+        fall through and find all <p> tags in the document instead."""
+        html = """
+        <p>First real paragraph with enough text to pass the length filter easily.</p>
+        <p>Second real paragraph also long enough to pass the minimum length check.</p>
+        <div class="footnote-content">
+            <p>Tiny footnote text that is just a citation reference in the article.</p>
+        </div>
+        <p>Third real paragraph providing more content for the article overall.</p>
+        """
+        _, segments = processor._parse_newsletter(html, "https://example.com/test")
+        items = [s for s in segments if s["segment_type"] == "item"]
+        # Should find 3 real paragraphs + 1 footnote paragraph = 4 items
+        # (not just the 1 footnote paragraph from the old substring match)
+        assert len(items) >= 3
+
+
 class TestGroupSegments:
     def test_basic_grouping(self, processor):
         segments = [

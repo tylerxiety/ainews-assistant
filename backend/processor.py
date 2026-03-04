@@ -445,7 +445,7 @@ class NewsletterProcessor:
                 "newsletter-content", "issue-content", "main"
             ]
             for cls in content_classes:
-                article = soup.find("div", class_=lambda x, c=cls: x and c in x)
+                article = soup.find("div", class_=cls)
                 if article:
                     break
         
