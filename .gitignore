@@ -96,3 +96,8 @@ docs/
 # ruff
 .ruff_cache/
 
+
+# demo files
+demo_files/
+aina launchpad demo video/
+
