@@ -61,7 +61,14 @@ export default function IssueList() {
   const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeFilter, setActiveFilter] = useState<string>(ALL_SOURCES)
+  const [activeFilter, setActiveFilter] = useState<string>(
+    () => sessionStorage.getItem('activeFilter') || ALL_SOURCES
+  )
+
+  const updateFilter = (filter: string) => {
+    setActiveFilter(filter)
+    sessionStorage.setItem('activeFilter', filter)
+  }
 
   // Processing state
   const [url, setUrl] = useState('')
@@ -190,7 +197,7 @@ export default function IssueList() {
       <nav className="source-filters">
         <button
           className={`filter-tab ${activeFilter === ALL_SOURCES ? 'active' : ''}`}
-          onClick={() => setActiveFilter(ALL_SOURCES)}
+          onClick={() => updateFilter(ALL_SOURCES)}
         >
           {t('issueList.allSources')} ({issues.length})
         </button>
@@ -198,7 +205,7 @@ export default function IssueList() {
           <button
             key={src.id}
             className={`filter-tab ${activeFilter === src.id ? 'active' : ''}`}
-            onClick={() => setActiveFilter(src.id)}
+            onClick={() => updateFilter(src.id)}
           >
             {src.name} ({sourceCounts[src.id] || 0})
           </button>
