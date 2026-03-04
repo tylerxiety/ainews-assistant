@@ -204,7 +204,7 @@ async def _process_single_source(source_id: str, force: bool = False, entry_inde
 
         latest_url, title, html_content, published, source_id = result
 
-        if not force and processor.check_issue_exists(latest_url, title=title, source=source_id):
+        if not force and processor.check_issue_exists(latest_url, title=title, source=source_id, published_at=published):
             logger.info(f"Newsletter already processed: {latest_url}")
             return {
                 "status": "skipped",

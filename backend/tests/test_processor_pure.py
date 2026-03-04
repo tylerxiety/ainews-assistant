@@ -271,76 +271,78 @@ class TestExtractEntryData:
 # ────────────────────────────────────────────
 
 class TestCheckIssueExists:
-    def _make_supabase_mock(self, processor, url_rows=None, title_rows=None):
-        """Wire processor.supabase so URL query returns url_rows and title query returns title_rows."""
+    def _mock_url_only(self, processor, url_rows):
+        """Mock supabase so URL lookup returns url_rows."""
         from unittest.mock import MagicMock
 
         url_result = MagicMock()
-        url_result.data = url_rows or []
+        url_result.data = url_rows
+        processor.supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = url_result
 
-        title_result = MagicMock()
-        title_result.data = title_rows or []
-
-        call_count = [0]
-
-        def select_side_effect(*args, **kwargs):
-            q = MagicMock()
-            # First .eq("url", ...) call → URL lookup; second chain → source+title lookup
-            eq_call_count = [0]
-
-            def eq_side_effect(col, val):
-                eq_call_count[0] += 1
-                inner_q = MagicMock()
-                inner_q.execute.return_value = url_result if col == "url" else title_result
-                # Support chaining: .eq("source", ...).eq("title", ...)
-                inner_q.eq.side_effect = lambda c, v: MagicMock(execute=MagicMock(return_value=title_result))
-                return inner_q
-
-            q.eq.side_effect = eq_side_effect
-            return q
-
-        processor.supabase.table.return_value.select.side_effect = select_side_effect
-
-    def test_url_match_returns_true(self, processor):
-        self._make_supabase_mock(processor, url_rows=[{"id": "abc"}])
-        assert processor.check_issue_exists("https://example.com/issue-1") is True
-
-    def test_no_match_returns_false(self, processor):
-        self._make_supabase_mock(processor, url_rows=[], title_rows=[])
-        assert processor.check_issue_exists("https://example.com/new", title="New Issue", source="ainews") is False
-
-    def test_source_title_match_catches_renamed_slug(self, processor):
-        """Renamed slug: URL is new but source+title already exist → should return True."""
+    def _mock_url_and_slug_rename(self, processor, url_rows, slug_rename_rows):
+        """Mock supabase for URL lookup (empty) + source+title+date lookup."""
         from unittest.mock import MagicMock
 
         url_result = MagicMock()
-        url_result.data = []  # URL not found
+        url_result.data = url_rows
 
-        title_result = MagicMock()
-        title_result.data = [{"id": "abc", "url": "https://example.com/old-slug"}]  # title found
+        slug_result = MagicMock()
+        slug_result.data = slug_rename_rows
 
         table_mock = MagicMock()
-        # First call: URL lookup (returns empty)
-        # Second call: source+title lookup (returns a match)
+        # URL lookup: .select().eq("url", ...).execute()
         table_mock.select.return_value.eq.return_value.execute.return_value = url_result
-        table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = title_result
+        # Slug-rename lookup: .select().eq("source").eq("title").gte().lte().execute()
+        table_mock.select.return_value.eq.return_value.eq.return_value.gte.return_value.lte.return_value.execute.return_value = slug_result
 
         processor.supabase.table.return_value = table_mock
 
+    def test_url_match_returns_true(self, processor):
+        self._mock_url_only(processor, url_rows=[{"id": "abc"}])
+        assert processor.check_issue_exists("https://example.com/issue-1") is True
+
+    def test_no_match_returns_false(self, processor):
+        self._mock_url_and_slug_rename(processor, url_rows=[], slug_rename_rows=[])
+        assert processor.check_issue_exists(
+            "https://example.com/new", title="New Issue", source="ainews",
+            published_at="2026-03-03T05:44:39+00:00",
+        ) is False
+
+    def test_source_title_date_match_catches_renamed_slug(self, processor):
+        """Renamed slug: URL is new but source+title+date already exist → True."""
+        self._mock_url_and_slug_rename(
+            processor, url_rows=[],
+            slug_rename_rows=[{"id": "abc", "url": "https://example.com/old-slug"}],
+        )
         assert processor.check_issue_exists(
             "https://example.com/new-slug",
             title="Same Title",
             source="ainews",
+            published_at="2026-02-25T05:44:39+00:00",
         ) is True
+
+    def test_same_title_different_date_not_duplicate(self, processor):
+        """Regression: recurring titles like 'not much happened today' on different
+        dates must NOT be treated as duplicates."""
+        self._mock_url_and_slug_rename(processor, url_rows=[], slug_rename_rows=[])
+        # March 3 issue should NOT match the Feb 20 issue with the same title
+        assert processor.check_issue_exists(
+            "https://news.smol.ai/issues/26-03-03-not-much/",
+            title="not much happened today",
+            source="ainews",
+            published_at="2026-03-03T05:44:39+00:00",
+        ) is False
+
+    def test_skips_slug_rename_check_without_published_at(self, processor):
+        """Without published_at, only URL check runs — no false positives."""
+        self._mock_url_only(processor, url_rows=[])
+        assert processor.check_issue_exists(
+            "https://example.com/issue", title="T", source="ainews",
+        ) is False
 
     def test_skips_title_check_when_no_title(self, processor):
         """Without title/source, only URL check runs — no crash."""
-        from unittest.mock import MagicMock
-
-        url_result = MagicMock()
-        url_result.data = []
-        processor.supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = url_result
-
+        self._mock_url_only(processor, url_rows=[])
         assert processor.check_issue_exists("https://example.com/issue") is False
 
     def test_supabase_error_returns_false(self, processor):

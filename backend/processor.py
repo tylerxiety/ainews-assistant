@@ -1218,17 +1218,18 @@ class NewsletterProcessor:
 
         return self._extract_entry_data(feed.entries[entry_index])
 
-    def check_issue_exists(self, url: str, title: str | None = None, source: str | None = None) -> bool:
+    def check_issue_exists(self, url: str, title: str | None = None, source: str | None = None, published_at: str | None = None) -> bool:
         """
         Check if an issue already exists in the database.
 
-        Checks by exact URL first, then by source + title to catch cases where
-        a newsletter author renames the URL slug after publication.
+        Checks by exact URL first, then by source + title + date to catch cases
+        where a newsletter author renames the URL slug after publication.
 
         Args:
             url: Newsletter URL to check
-            title: Newsletter title (for source+title dedup)
-            source: Newsletter source ID (for source+title dedup)
+            title: Newsletter title (for slug-rename dedup)
+            source: Newsletter source ID (for slug-rename dedup)
+            published_at: ISO 8601 publication date (for slug-rename dedup)
 
         Returns:
             bool: True if issue already exists, False otherwise
@@ -1239,11 +1240,22 @@ class NewsletterProcessor:
                 logger.info(f"Issue already exists for URL: {url}")
                 return True
 
-            # Also check by source + title to catch renamed slugs
-            if title and source:
-                result = self.supabase.table("issues").select("id, url").eq("source", source).eq("title", title).execute()
+            # Also check by source + title + date to catch renamed slugs.
+            # Date is required to avoid false matches on recurring titles
+            # like "not much happened today".
+            if title and source and published_at:
+                date_str = published_at[:10]  # Extract YYYY-MM-DD
+                result = (
+                    self.supabase.table("issues")
+                    .select("id, url")
+                    .eq("source", source)
+                    .eq("title", title)
+                    .gte("published_at", f"{date_str}T00:00:00")
+                    .lte("published_at", f"{date_str}T23:59:59")
+                    .execute()
+                )
                 if result.data:
-                    logger.info(f"Issue already exists with same source+title (slug may have changed): {result.data[0]['url']} -> {url}")
+                    logger.info(f"Issue already exists with same source+title+date (slug may have changed): {result.data[0]['url']} -> {url}")
                     return True
 
             return False
