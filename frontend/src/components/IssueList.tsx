@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, FormEvent } from 'react'
+import { useState, useEffect, useMemo, useRef, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchIssues } from '../lib/supabase'
 import { API_URL } from '../lib/api'
@@ -65,10 +65,22 @@ export default function IssueList() {
     () => sessionStorage.getItem('activeFilter') || ALL_SOURCES
   )
 
+  const filtersRef = useRef<HTMLElement>(null)
+
   const updateFilter = (filter: string) => {
     setActiveFilter(filter)
     sessionStorage.setItem('activeFilter', filter)
   }
+
+  useEffect(() => {
+    const el = filtersRef.current
+    if (!el) return
+    const saved = sessionStorage.getItem('filterScrollLeft')
+    if (saved) el.scrollLeft = Number(saved)
+    const onScroll = () => sessionStorage.setItem('filterScrollLeft', String(el.scrollLeft))
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [loading])
 
   // Processing state
   const [url, setUrl] = useState('')
@@ -194,7 +206,7 @@ export default function IssueList() {
         )}
       </section>
 
-      <nav className="source-filters">
+      <nav className="source-filters" ref={filtersRef}>
         <button
           className={`filter-tab ${activeFilter === ALL_SOURCES ? 'active' : ''}`}
           onClick={() => updateFilter(ALL_SOURCES)}
