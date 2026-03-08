@@ -29,8 +29,8 @@ class TestConfig:
 
     def test_get_source_config_valid(self):
         cfg = Config.get_source_config("ainews")
-        assert cfg["rssUrl"] == "https://news.smol.ai/rss.xml"
-        assert cfg["authCookieName"] == "connect.sid"
+        assert "latent.space/feed" in cfg["rssUrl"]
+        assert "sectionId=327741" in cfg["rssUrl"]
 
     def test_get_source_config_the_batch(self):
         cfg = Config.get_source_config("the_batch")
