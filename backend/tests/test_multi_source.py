@@ -30,7 +30,8 @@ class TestConfig:
     def test_get_source_config_valid(self):
         cfg = Config.get_source_config("ainews")
         assert "latent.space/feed" in cfg["rssUrl"]
-        assert "sectionId=327741" in cfg["rssUrl"]
+        assert "token=" in cfg["rssUrl"]
+        assert cfg["titleFilter"] == "^\\[AINews\\]"
 
     def test_get_source_config_the_batch(self):
         cfg = Config.get_source_config("the_batch")
