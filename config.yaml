@@ -73,7 +73,9 @@ backend:
     newsletterSources:
       - id: "ainews"
         name: "AINews"
-        rssUrl: "https://www.latent.space/feed?token=755e0227-bccb-4ca1-b50c-261bbc38a73a"
+        fetchMethod: "gmail"
+        gmail:
+          senderEmail: "swyx+ainews@substack.com"
         titleFilter: "^\\[AINews\\]"
         enableConsolidation: true
 

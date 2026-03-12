@@ -1085,6 +1085,10 @@ class NewsletterProcessor:
         """
         source_id = source_id or Config.DEFAULT_SOURCE_ID
         source_config = Config.get_source_config(source_id)
+
+        if source_config.get("fetchMethod") == "gmail":
+            return await self._fetch_from_gmail(source_config, entry_index, source_id)
+
         rss_url = source_config["rssUrl"]
         logger.info(f"Fetching RSS feed for {source_id}: {rss_url}")
 
@@ -1169,6 +1173,61 @@ class NewsletterProcessor:
         except Exception as e:
             logger.error(f"Error parsing RSS feed: {e}")
             return None
+
+    async def _fetch_from_gmail(
+        self,
+        source_config: dict,
+        entry_index: int,
+        source_id: str,
+    ) -> tuple[str, str, str, str | None, str] | None:
+        """Fetch newsletter content from Gmail instead of RSS."""
+        fetcher = self._get_gmail_fetcher()
+        if not fetcher:
+            logger.error("Gmail credentials not configured — cannot fetch from Gmail")
+            return None
+
+        gmail_config = source_config.get("gmail", {})
+        sender_email = gmail_config.get("senderEmail")
+        if not sender_email:
+            logger.error(f"No senderEmail configured for Gmail source {source_id}")
+            return None
+
+        title_filter = source_config.get("titleFilter")
+        logger.info(f"Fetching from Gmail for {source_id}: sender={sender_email}")
+
+        try:
+            result = await asyncio.to_thread(
+                fetcher.fetch_latest_email, sender_email, title_filter, entry_index
+            )
+        except Exception as e:
+            logger.error(f"Gmail API error for {source_id}: {e}")
+            return None
+
+        if not result:
+            return None
+
+        url, title, html_content, published = result
+        logger.info(f"Found Gmail newsletter: {title} ({len(html_content)} chars)")
+        return (url, title, html_content, published, source_id)
+
+    def _get_gmail_fetcher(self):
+        """Lazy-initialize and cache a GmailFetcher instance."""
+        if hasattr(self, "_gmail_fetcher"):
+            return self._gmail_fetcher
+
+        client_id = os.environ.get("GMAIL_CLIENT_ID")
+        client_secret = os.environ.get("GMAIL_CLIENT_SECRET")
+        refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
+
+        if not all([client_id, client_secret, refresh_token]):
+            logger.warning("Gmail credentials not set (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN)")
+            self._gmail_fetcher = None
+            return None
+
+        from gmail_fetcher import GmailFetcher
+
+        self._gmail_fetcher = GmailFetcher(client_id, client_secret, refresh_token)
+        return self._gmail_fetcher
 
     @staticmethod
     def _extract_entry_data(entry) -> tuple[str, str, str, str | None] | None:

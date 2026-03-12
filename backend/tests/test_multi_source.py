@@ -29,8 +29,8 @@ class TestConfig:
 
     def test_get_source_config_valid(self):
         cfg = Config.get_source_config("ainews")
-        assert "latent.space/feed" in cfg["rssUrl"]
-        assert "token=" in cfg["rssUrl"]
+        assert cfg["fetchMethod"] == "gmail"
+        assert cfg["gmail"]["senderEmail"] == "swyx+ainews@substack.com"
         assert cfg["titleFilter"] == "^\\[AINews\\]"
 
     def test_get_source_config_the_batch(self):
@@ -80,7 +80,10 @@ class TestConfig:
         for src_id, cfg in Config.NEWSLETTER_SOURCES.items():
             assert "id" in cfg, f"{src_id} missing 'id'"
             assert "name" in cfg, f"{src_id} missing 'name'"
-            assert "rssUrl" in cfg, f"{src_id} missing 'rssUrl'"
+            # Sources use either rssUrl or fetchMethod: gmail
+            has_rss = "rssUrl" in cfg
+            has_gmail = cfg.get("fetchMethod") == "gmail" and "gmail" in cfg
+            assert has_rss or has_gmail, f"{src_id} missing 'rssUrl' or gmail config"
 
 
 # ────────────────────────────────────────────

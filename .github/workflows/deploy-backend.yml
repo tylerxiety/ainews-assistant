@@ -59,6 +59,9 @@ jobs:
           GCP_REGION=us-central1,\
           GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }},\
           SUBSTACK_CONNECT_SID=${{ secrets.SUBSTACK_CONNECT_SID }},\
+          GMAIL_CLIENT_ID=${{ secrets.GMAIL_CLIENT_ID }},\
+          GMAIL_CLIENT_SECRET=${{ secrets.GMAIL_CLIENT_SECRET }},\
+          GMAIL_REFRESH_TOKEN=${{ secrets.GMAIL_REFRESH_TOKEN }},\
           ALLOWED_ORIGINS=https://ainews-assistant.vercel.app" \
             --timeout 3600 \
             --memory 2Gi \
