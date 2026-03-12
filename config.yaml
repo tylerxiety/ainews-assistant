@@ -67,8 +67,6 @@ backend:
       discordMode: "recap_only"
       # Remove repeated Reddit items using lightweight text fingerprint dedup
       redditLightDedup: true
-    # RSS Feed URL for newsletter discovery
-    rssUrl: "https://www.latent.space/feed?token=755e0227-bccb-4ca1-b50c-261bbc38a73a"
     defaultSource: "ainews"
     newsletterSources:
       - id: "ainews"
