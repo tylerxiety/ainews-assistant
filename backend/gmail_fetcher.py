@@ -134,23 +134,47 @@ class GmailFetcher:
     def _extract_canonical_url(html: str) -> str | None:
         """Extract the canonical newsletter URL from Substack email HTML.
 
-        Looks for links to latent.space/p/... which is the canonical post URL.
+        Substack emails wrap links in redirects like:
+        https://substack.com/redirect/2/<base64-jwt>
+        The JWT payload contains an "e" field with the actual destination URL.
+        Falls back to direct latent.space/p/ links if found.
         """
-        # Match "View in browser" or "View online" style links first
-        view_pattern = re.search(
+        import json
+
+        # Strategy 1: Decode Substack redirect tokens for latent.space/p/ URLs
+        # Format: substack.com/redirect/2/<base64-payload>.<signature>
+        redirects = re.findall(r'https://substack\.com/redirect/2/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)', html)
+        for token in redirects:
+            try:
+                payload_b64 = token.split(".")[0]
+                # Add padding
+                padding = 4 - len(payload_b64) % 4
+                if padding != 4:
+                    payload_b64 += "=" * padding
+                payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+                dest_url = payload.get("e", "")
+                if "latent.space/p/" in dest_url:
+                    # Strip query params
+                    clean_url = dest_url.split("?")[0]
+                    return clean_url
+            except Exception:
+                continue
+
+        # Strategy 2: Direct latent.space/p/ link
+        direct = re.search(
             r'<a[^>]+href="(https?://[^"]*latent\.space/p/[^"?]*)',
             html,
         )
-        if view_pattern:
-            return view_pattern.group(1)
+        if direct:
+            return direct.group(1)
 
-        # Fallback: any latent.space/p/ link
-        fallback = re.search(
+        # Strategy 3: Bare URL in text
+        bare = re.search(
             r'https?://[^"\s]*latent\.space/p/[^"?\s]*',
             html,
         )
-        if fallback:
-            return fallback.group(0)
+        if bare:
+            return bare.group(0)
 
         return None
 

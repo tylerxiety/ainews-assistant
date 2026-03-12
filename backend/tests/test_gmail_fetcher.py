@@ -70,13 +70,20 @@ class TestExtractHtmlFromMessage:
 
 
 class TestExtractCanonicalUrl:
-    def test_latent_space_url(self):
+    def test_substack_redirect_jwt(self):
+        """Substack redirect tokens should be decoded to extract latent.space URL."""
+        import base64
+        import json
+
+        payload = {"e": "https://www.latent.space/p/ainews-test-post?utm_campaign=email"}
+        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+        sig = "fakesig123"
+        html = f'<a href="https://substack.com/redirect/2/{payload_b64}.{sig}">View in browser</a>'
+        assert GmailFetcher._extract_canonical_url(html) == "https://www.latent.space/p/ainews-test-post"
+
+    def test_direct_latent_space_url(self):
         html = '<a href="https://www.latent.space/p/ainews-title-here">View in browser</a>'
         assert GmailFetcher._extract_canonical_url(html) == "https://www.latent.space/p/ainews-title-here"
-
-    def test_url_with_query_params_stripped(self):
-        html = '<a href="https://www.latent.space/p/some-post?utm_source=email">View</a>'
-        assert GmailFetcher._extract_canonical_url(html) == "https://www.latent.space/p/some-post"
 
     def test_no_latent_space_url(self):
         html = "<p>No links here</p>"
