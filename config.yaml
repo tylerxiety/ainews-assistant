@@ -99,11 +99,6 @@ backend:
         titleFilter: "^Last Week in AI"
         enableConsolidation: false
 
-      - id: "the_sequence"
-        name: "TheSequence"
-        rssUrl: "https://thesequence.substack.com/feed"
-        enableConsolidation: false
-
       - id: "interconnects"
         name: "Interconnects"
         rssUrl: "https://www.interconnects.ai/feed"
@@ -119,11 +114,6 @@ backend:
         rssUrl: "https://www.normaltech.ai/feed"
         enableConsolidation: false
 
-      - id: "latent_space"
-        name: "Latent Space"
-        rssUrl: "https://www.latent.space/feed?token=755e0227-bccb-4ca1-b50c-261bbc38a73a"
-        titleFilter: "^(?!\\[AINews\\])"
-        enableConsolidation: false
   
   ai:
     models:

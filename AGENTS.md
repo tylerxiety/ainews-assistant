@@ -1,7 +1,7 @@
 # Project Instructions
 
 ## Overview
-AI News Assistant - PWA that converts AI/ML newsletters (10 sources including AINews, The Batch, Import AI, Latent Space, and more) into listenable audio with visual sync, voice commands/Q&A, bilingual support (EN/ZH), and tap-to-bookmark to ClickUp. Auto-processed every 6 hours via Cloud Scheduler.
+AI News Assistant - PWA that converts AI/ML newsletters (8 sources including AINews, The Batch, Import AI, and more) into listenable audio with visual sync, voice commands/Q&A, bilingual support (EN/ZH), and tap-to-bookmark to ClickUp. Auto-processed every 6 hours via Cloud Scheduler.
 
 ## Tech Stack
 - **Frontend**: Vite + React 19 + TypeScript + plain CSS (PWA on Vercel), lucide-react icons
@@ -22,8 +22,8 @@ AI News Assistant - PWA that converts AI/ML newsletters (10 sources including AI
 - **UI Architecture**: `Player.tsx` orchestrates state; `SegmentList` (content), `AudioBar` (controls), `SidePanel` (TOC + Q&A)
 - **Bilingual content**: Separate `*_zh` columns in DB; skip segments without Chinese audio when UI is ZH
 - **UI localization**: Simple JSON locale files with React context; persisted to localStorage; both EN/ZH voice commands always recognized
-- **Multi-source newsletters**: 10 sources configured in `config.yaml` under `newsletterSources`. Each has its own RSS URL, optional auth cookie, and content filtering rules. `issues.source` column tracks origin; `NULL` = legacy ainews. The Batch uses bundle detection (`filterBundleOnly`) to skip individual articles. Three sources use `titleFilter` regex to select matching entries (AINews selects `[AINews]` posts; Last Week in AI skips podcast episodes; Latent Space skips `[AINews]` posts). Source-specific junk text (ElevenLabs loader, Tongyi promo footer) is filtered in `_parse_newsletter`. Frontend shows filter tabs + colored source badges.
-- **AINews source**: Uses Gmail API (`fetchMethod: "gmail"`) to fetch full-text AINews emails forwarded from `swyx+ainews@substack.com` to `tylerxiety@gmail.com`. OAuth2 credentials (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`) stored as env vars / GitHub secrets. The `latent_space` source still uses RSS with a private subscriber token and inverse `titleFilter` to exclude AINews posts.
+- **Multi-source newsletters**: 8 sources configured in `config.yaml` under `newsletterSources`. Each has its own RSS URL, optional auth cookie, and content filtering rules. `issues.source` column tracks origin; `NULL` = legacy ainews. The Batch uses bundle detection (`filterBundleOnly`) to skip individual articles. Two sources use `titleFilter` regex to select matching entries (AINews selects `[AINews]` posts; Last Week in AI skips podcast episodes). Source-specific junk text (ElevenLabs loader, Tongyi promo footer) is filtered in `_parse_newsletter`. Frontend shows filter tabs + colored source badges.
+- **AINews source**: Uses Gmail API (`fetchMethod: "gmail"`) to fetch full-text AINews emails forwarded from `swyx+ainews@substack.com` to `tylerxiety@gmail.com`. OAuth2 credentials (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`) stored as env vars / GitHub secrets.
 - **Offline reading**: `useOfflineDownload` hook pre-fetches issue data via `fetchIssueWithGroups`, letting the Workbox NetworkFirst SW cache Supabase responses (7-day expiration, 200 entries). Downloaded issue IDs tracked in localStorage. Download button in `IssueList.tsx` on processed issues. GCS bucket has CORS configured (`gsutil cors get gs://ainews-audio-prod`).
 
 ## Conventions

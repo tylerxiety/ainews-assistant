@@ -17,12 +17,12 @@ class TestConfig:
     def test_newsletter_sources_loaded(self):
         expected = [
             "ainews", "the_batch", "tongyi_weekly",
-            "import_ai", "last_week_in_ai", "the_sequence",
-            "interconnects", "ahead_of_ai", "normal_tech", "latent_space",
+            "import_ai", "last_week_in_ai",
+            "interconnects", "ahead_of_ai", "normal_tech",
         ]
         for src_id in expected:
             assert src_id in Config.NEWSLETTER_SOURCES, f"{src_id} not found in NEWSLETTER_SOURCES"
-        assert len(Config.NEWSLETTER_SOURCES) == 10
+        assert len(Config.NEWSLETTER_SOURCES) == 8
 
     def test_default_source(self):
         assert Config.DEFAULT_SOURCE_ID == "ainews"
@@ -51,10 +51,6 @@ class TestConfig:
         assert "lastweekin.ai" in cfg["rssUrl"]
         assert cfg["titleFilter"] == "^Last Week in AI"
 
-    def test_get_source_config_the_sequence(self):
-        cfg = Config.get_source_config("the_sequence")
-        assert "thesequence.substack.com" in cfg["rssUrl"]
-
     def test_get_source_config_interconnects(self):
         cfg = Config.get_source_config("interconnects")
         assert "interconnects.ai" in cfg["rssUrl"]
@@ -66,11 +62,6 @@ class TestConfig:
     def test_get_source_config_normal_tech(self):
         cfg = Config.get_source_config("normal_tech")
         assert "normaltech.ai" in cfg["rssUrl"]
-
-    def test_get_source_config_latent_space(self):
-        cfg = Config.get_source_config("latent_space")
-        assert "latent.space" in cfg["rssUrl"]
-        assert cfg["titleFilter"] == "^(?!\\[AINews\\])"
 
     def test_get_source_config_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown source"):
@@ -100,18 +91,6 @@ class TestTitleFilter:
     def test_last_week_in_ai_skips_podcast(self):
         pattern = Config.get_source_config("last_week_in_ai")["titleFilter"]
         assert not re.search(pattern, "LWiAI Podcast #234")
-
-    def test_latent_space_matches_essay(self):
-        pattern = Config.get_source_config("latent_space")["titleFilter"]
-        assert re.search(pattern, "Bitter Lessons in Venture")
-
-    def test_latent_space_matches_interview(self):
-        pattern = Config.get_source_config("latent_space")["titleFilter"]
-        assert re.search(pattern, "Building AI Agents with LangChain")
-
-    def test_latent_space_skips_ainews(self):
-        pattern = Config.get_source_config("latent_space")["titleFilter"]
-        assert not re.search(pattern, "[AINews] The Custom ASIC Thesis")
 
     @pytest.mark.asyncio
     async def test_fetch_title_filtered_skips_non_matching(self, processor):
