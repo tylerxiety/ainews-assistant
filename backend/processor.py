@@ -43,8 +43,7 @@ class NewsletterProcessor:
         self.max_concurrent_segments = Config.MAX_CONCURRENT_SEGMENTS
 
         # Initialize GCP clients
-        # Gemini 3 Pro Preview requires global region
-        vertexai.init(project=gcp_project_id, location="global")
+        vertexai.init(project=gcp_project_id, location="us-central1")
         
         # Separate models for different tasks (configurable in config.yaml)
         self.gemini_model_cleaning = GenerativeModel(Config.GEMINI_MODEL_TEXT_CLEANING)

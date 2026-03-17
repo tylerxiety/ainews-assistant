@@ -117,16 +117,14 @@ backend:
   
   ai:
     models:
-      # Model for cleaning newsletter text for TTS (needs high reasoning)
-      # Gemini 3 Pro Preview requires global region, 
-      # so currently set location="global" in code
-      textCleaning: "gemini-3-flash-preview"
+      # Model for cleaning newsletter text for TTS
+      textCleaning: "gemini-2.5-flash"
       # Model for Q&A (transcribe + answer) 
       qa: "gemini-2.5-flash-lite"
   
   tts:
     en:
-      voiceName: "en-US-Chirp3-HD-Aoede"
+      voiceName: "en-US-Neural2-F"
       languageCode: "en-US"
     zh:
       voiceName: "cmn-CN-Chirp3-HD-Aoede"
