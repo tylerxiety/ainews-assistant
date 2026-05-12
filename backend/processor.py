@@ -887,7 +887,7 @@ class NewsletterProcessor:
     ) -> tuple[str, str, str]:
         """
         Answer a question from audio input about the entire newsletter issue.
-        Uses faster model for audio transcription and Q&A.
+        Uses the configured Q&A model for audio transcription and answering.
 
         Args:
             audio_file: UploadFile from FastAPI

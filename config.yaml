@@ -119,8 +119,8 @@ backend:
     models:
       # Model for cleaning newsletter text for TTS
       textCleaning: "gemini-2.5-flash"
-      # Model for Q&A (transcribe + answer) 
-      qa: "gemini-2.5-flash-lite"
+      # Model for audio Q&A (transcribe + answer)
+      qa: "gemini-3.1-pro-preview"
   
   tts:
     en:

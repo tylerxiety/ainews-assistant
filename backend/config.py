@@ -77,7 +77,7 @@ class Config:
     _models = _ai.get("models", {})
     
     GEMINI_MODEL_TEXT_CLEANING: str = _models.get("textCleaning", "gemini-3-pro-preview")
-    GEMINI_MODEL_QA: str = _models.get("qa", "gemini-2.5-flash-preview")
+    GEMINI_MODEL_QA: str = _models.get("qa", "gemini-3.1-pro-preview")
 
     # === TTS (from config.yaml) ===
     _tts = _backend.get("tts", {})
