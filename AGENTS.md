@@ -70,23 +70,29 @@ AI News Assistant - PWA that converts AI/ML newsletters (8 sources including AIN
 - CLIs available: `gcloud`, `supabase`, `vercel`, `gh`
 - Ask permission before create/modify/delete commands; read-only commands are fine
 
-### Current Dev Environment (Hackathon Freeze)
-- **Main freeze window**: `main` is locked for judging until **March 4, 2026**.
-- **Active development branch**: use `dev` for ongoing work.
-- **Backend services**:
-  - Prod: `newsletter-processor` (deployed by `.github/workflows/deploy-backend.yml` on `main`)
-  - Dev: `newsletter-processor-dev` (deployed by `.github/workflows/deploy-backend-dev.yml` on `dev`)
-- **Dev deploy secrets required**: `SUPABASE_URL_DEV`, `SUPABASE_SERVICE_KEY_DEV`, `GCS_BUCKET_NAME_DEV`.
-- **GCP Project**: `ainews-488517` (account: `tylerdbe@gmail.com`)
-- **Dev backend URL**: `https://newsletter-processor-dev-715208176084.us-central1.run.app`
-- **Vercel preview wiring**:
-  - `Preview (dev)` and `Preview` env `VITE_API_URL` point to `newsletter-processor-dev`
-  - Branch alias in use: `https://ainews-assistant-git-dev-tylers-projects-7e632143.vercel.app`
-- **Scheduler policy while on single Supabase (free plan)**:
-  - Prod scheduler `newsletter-processor-trigger` → `/process-latest` (ainews only) — **PAUSED**.
-  - Dev scheduler `newsletter-dev-all` → `/process-all-latest` (all sources from config.yaml) — **ENABLED**, every 1h at :00 UTC, 30min timeout.
-  - To add/remove a source: edit `config.yaml` `newsletterSources` and redeploy — no scheduler changes needed.
-  - Do **not** enable both prod+dev schedulers at the same time — prod/dev share one Supabase DB.
+### Backend environments
+Hackathon freeze ended; `dev` has been merged into `main`. The `dev` branch + `newsletter-processor-dev` Cloud Run service are kept as a staging environment for changes that need testing before `main`.
+
+- **GCP project**: `ainews-assistant` (account: `tyler.ty.xie@gmail.com`)
+- **Services**:
+  - **Prod** — `newsletter-processor` at `https://newsletter-processor-sju3afmruq-uc.a.run.app`
+    - Deployed by `.github/workflows/deploy-backend.yml` on push to `main`
+    - Writes audio to `gs://ainews-audio-prod`
+    - Uses `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `GCS_BUCKET_NAME`
+  - **Dev/staging** — `newsletter-processor-dev` at `https://newsletter-processor-dev-sju3afmruq-uc.a.run.app`
+    - Deployed by `.github/workflows/deploy-backend-dev.yml` on push to `dev`
+    - Writes audio to `gs://ainews-audio-dev`
+    - Uses `SUPABASE_URL_DEV`, `SUPABASE_SERVICE_KEY_DEV`, `GCS_BUCKET_NAME_DEV`
+- **Shared Supabase**: `SUPABASE_URL` and `SUPABASE_URL_DEV` currently point at the same project — the `_DEV` secrets exist to keep the deploy workflow uniform, not for DB isolation. Any prod and dev run writes into the same tables.
+- **Buckets are split, not isolated**: dev and prod write to different GCS buckets, but Supabase `audio_url` columns store full URLs (`https://storage.googleapis.com/<bucket>/<path>`), so issues stay pinned to whichever bucket originally generated them. Recent multi-source content largely lives in `ainews-audio-dev` because the active scheduler hits the dev service. Do not delete or rename a bucket without first rewriting the `audio_url` / `audio_url_zh` rows in Supabase.
+- **Vercel `VITE_API_URL`**:
+  - `Production` → `newsletter-processor`
+  - `Preview (dev)` → `newsletter-processor-dev`
+  - Branch alias: `https://ainews-assistant-git-dev-tylers-projects-7e632143.vercel.app`
+- **Schedulers** (only one runs at a time — both write into the shared Supabase):
+  - `newsletter-processor-trigger` → prod `/process-latest` (AINews only) — **PAUSED**
+  - `newsletter-dev-all` → dev `/process-all-latest` (all sources from `config.yaml`) — **ENABLED**, every 3h at :00 UTC, 30 min timeout
+  - To add/remove a source: edit `config.yaml` `newsletterSources` and redeploy — no scheduler change needed.
 
 ## Multi-Agent Environment
 Multiple AI agents work on this project. Check git status before starting, pull frequently, keep changes atomic.
