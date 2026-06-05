@@ -84,7 +84,7 @@ AI News Assistant - PWA that converts AI/ML newsletters (8 sources including AIN
   - Branch alias in use: `https://ainews-assistant-git-dev-tylers-projects-7e632143.vercel.app`
 - **Scheduler policy while on single Supabase (free plan)**:
   - Prod scheduler `newsletter-processor-trigger` → `/process-latest` (ainews only) — **PAUSED**.
-  - Dev scheduler `newsletter-dev-all` → `/process-all-latest` (all sources from config.yaml) — **ENABLED**, every 6h at :00 UTC, 30min timeout.
+  - Dev scheduler `newsletter-dev-all` → `/process-all-latest` (all sources from config.yaml) — **ENABLED**, every 1h at :00 UTC, 30min timeout.
   - To add/remove a source: edit `config.yaml` `newsletterSources` and redeploy — no scheduler changes needed.
   - Do **not** enable both prod+dev schedulers at the same time — prod/dev share one Supabase DB.
 
