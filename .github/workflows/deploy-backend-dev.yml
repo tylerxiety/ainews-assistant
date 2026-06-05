@@ -58,6 +58,13 @@ jobs:
       - name: Push Docker Image
         run: docker push $IMAGE_NAME
 
+      - name: Update Cloud Scheduler to 1h interval
+        run: |
+          gcloud scheduler jobs update http newsletter-dev-all \
+            --schedule="0 * * * *" \
+            --location=$REGION \
+            --project=$PROJECT_ID || true
+
       - name: Deploy to Cloud Run (dev service)
         run: |
           gcloud run deploy $SERVICE_NAME \
