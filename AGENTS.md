@@ -91,7 +91,7 @@ Hackathon freeze ended; `dev` has been merged into `main`. The `dev` branch + `n
   - Branch alias: `https://ainews-assistant-git-dev-tylers-projects-7e632143.vercel.app`
 - **Schedulers** (only one runs at a time — both write into the shared Supabase):
   - `newsletter-processor-trigger` → prod `/process-latest` (AINews only) — **PAUSED**
-  - `newsletter-dev-all` → dev `/process-all-latest` (all sources from `config.yaml`) — **ENABLED**, every 3h at :00 UTC, 30 min timeout
+  - `newsletter-dev-all` → dev `/process-all-latest` (all sources from `config.yaml`) — **ENABLED**, every 1h at :00 UTC, 30 min timeout
   - To add/remove a source: edit `config.yaml` `newsletterSources` and redeploy — no scheduler change needed.
 
 ## Multi-Agent Environment
