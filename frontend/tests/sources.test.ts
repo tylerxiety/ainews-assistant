@@ -15,10 +15,10 @@ describe('getSourceInfo', () => {
     expect(info.name).toBe('The Batch')
   })
 
-  it('returns tongyi_weekly info', () => {
-    const info = getSourceInfo('tongyi_weekly')
-    expect(info.id).toBe('tongyi_weekly')
-    expect(info.name).toBe('Tongyi Weekly')
+  it('returns semianalysis info', () => {
+    const info = getSourceInfo('semianalysis')
+    expect(info.id).toBe('semianalysis')
+    expect(info.name).toBe('SemiAnalysis')
   })
 
   it('falls back to ainews for null', () => {

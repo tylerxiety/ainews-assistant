@@ -83,9 +83,9 @@ backend:
         filterBundleOnly: true
         enableConsolidation: false
 
-      - id: "tongyi_weekly"
-        name: "Tongyi Weekly"
-        rssUrl: "https://tongyilab.substack.com/feed"
+      - id: "semianalysis"
+        name: "SemiAnalysis"
+        rssUrl: "https://www.semianalysis.com/feed"
         enableConsolidation: false
 
       - id: "import_ai"

@@ -16,7 +16,7 @@ from processor import NewsletterProcessor
 class TestConfig:
     def test_newsletter_sources_loaded(self):
         expected = [
-            "ainews", "the_batch", "tongyi_weekly",
+            "ainews", "the_batch", "semianalysis",
             "import_ai", "last_week_in_ai",
             "interconnects", "ahead_of_ai", "normal_tech",
         ]
@@ -38,9 +38,9 @@ class TestConfig:
         assert cfg["filterBundleOnly"] is True
         assert "charonhub.deeplearning.ai" in cfg["rssUrl"]
 
-    def test_get_source_config_tongyi(self):
-        cfg = Config.get_source_config("tongyi_weekly")
-        assert "tongyilab.substack.com" in cfg["rssUrl"]
+    def test_get_source_config_semianalysis(self):
+        cfg = Config.get_source_config("semianalysis")
+        assert "semianalysis.com" in cfg["rssUrl"]
 
     def test_get_source_config_import_ai(self):
         cfg = Config.get_source_config("import_ai")
@@ -243,7 +243,7 @@ class TestSourceContentFiltering:
         assert any("actual newsletter content" in t.lower() for t in texts)
 
     def test_want_more_stay_updated_and_trailing_removed(self, processor):
-        """Tongyi's 'Want More? Stay Updated' and everything after should be stripped."""
+        """A newsletter's 'Want More? Stay Updated' promo footer and everything after should be stripped."""
         proc = processor
         html = """
         <article>
@@ -251,10 +251,10 @@ class TestSourceContentFiltering:
             <p>This is a real article paragraph with enough text to keep.</p>
             <h3>Want More? Stay Updated.</h3>
             <p>Every week, we bring you new model releases and upgrades.</p>
-            <p>Subscribe to The Tongyi Weekly and never miss a release.</p>
+            <p>Subscribe to The Weekly and never miss a release.</p>
         </article>
         """
-        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="tongyi_weekly")
+        _, segments = proc._parse_newsletter(html, "http://test", "Test", source_id="semianalysis")
         texts = [s["content_raw"] for s in segments]
         assert any("real article paragraph" in t.lower() for t in texts)
         assert not any("every week" in t.lower() for t in texts)
