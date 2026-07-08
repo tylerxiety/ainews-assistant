@@ -74,6 +74,7 @@ backend:
         fetchMethod: "gmail"
         gmail:
           senderEmail: "swyx+ainews@substack.com"
+          canonicalDomain: "latent.space"
         titleFilter: "^\\[AINews\\]"
         enableConsolidation: true
 
@@ -85,7 +86,10 @@ backend:
 
       - id: "semianalysis"
         name: "SemiAnalysis"
-        rssUrl: "https://www.semianalysis.com/feed"
+        fetchMethod: "gmail"
+        gmail:
+          senderEmail: "semianalysis@substack.com"
+          canonicalDomain: "newsletter.semianalysis.com"
         enableConsolidation: false
 
       - id: "import_ai"

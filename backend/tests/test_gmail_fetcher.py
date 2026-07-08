@@ -79,19 +79,42 @@ class TestExtractCanonicalUrl:
         payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
         sig = "fakesig123"
         html = f'<a href="https://substack.com/redirect/2/{payload_b64}.{sig}">View in browser</a>'
-        assert GmailFetcher._extract_canonical_url(html) == "https://www.latent.space/p/ainews-test-post"
+        assert GmailFetcher._extract_canonical_url(html, "latent.space") == "https://www.latent.space/p/ainews-test-post"
 
     def test_direct_latent_space_url(self):
         html = '<a href="https://www.latent.space/p/ainews-title-here">View in browser</a>'
-        assert GmailFetcher._extract_canonical_url(html) == "https://www.latent.space/p/ainews-title-here"
+        assert GmailFetcher._extract_canonical_url(html, "latent.space") == "https://www.latent.space/p/ainews-title-here"
 
     def test_no_latent_space_url(self):
         html = "<p>No links here</p>"
-        assert GmailFetcher._extract_canonical_url(html) is None
+        assert GmailFetcher._extract_canonical_url(html, "latent.space") is None
 
     def test_fallback_bare_url(self):
         html = 'Check out https://www.latent.space/p/my-post for more'
-        assert GmailFetcher._extract_canonical_url(html) == "https://www.latent.space/p/my-post"
+        assert GmailFetcher._extract_canonical_url(html, "latent.space") == "https://www.latent.space/p/my-post"
+
+    def test_next_query_param_on_subscribe_link(self):
+        """SemiAnalysis (self-hosted domain on Substack's email infra) wraps the
+        article link only as a `next=` param on a subscribe/manage-subscription
+        URL, not as a direct link or redirect-token 'e' field."""
+        html = (
+            '<a href="https://newsletter.semianalysis.com/subscribe?utm_source=email'
+            '&next=https%3A%2F%2Fnewsletter.semianalysis.com%2Fp%2Fanthropic-3q26-profit'
+            '&r=403x9">Subscribe</a>'
+        )
+        assert (
+            GmailFetcher._extract_canonical_url(html, "newsletter.semianalysis.com")
+            == "https://newsletter.semianalysis.com/p/anthropic-3q26-profit"
+        )
+
+    def test_ignores_other_domains_recommendation_links(self):
+        """A 'recommended newsletters' footer link to someone else's /p/ post
+        must not be mistaken for this source's own article."""
+        html = (
+            '<a href="https://www.latent.space/p/ainews-real-post">View in browser</a>'
+            '<a href="https://otherblog.substack.com/p/unrelated-post">Recommended</a>'
+        )
+        assert GmailFetcher._extract_canonical_url(html, "latent.space") == "https://www.latent.space/p/ainews-real-post"
 
 
 class TestStripEmailWrapper:
@@ -140,7 +163,7 @@ class TestSubjectFiltering:
 
         fetcher = GmailFetcher("id", "secret", "token")
         result = fetcher.fetch_latest_email(
-            "swyx+ainews@substack.com", title_filter=r"^\[AINews\]", entry_index=0
+            "swyx+ainews@substack.com", "latent.space", title_filter=r"^\[AINews\]", entry_index=0
         )
 
         assert result is not None
@@ -173,7 +196,7 @@ class TestSubjectFiltering:
 
         fetcher = GmailFetcher("id", "secret", "token")
         result = fetcher.fetch_latest_email(
-            "swyx+ainews@substack.com", title_filter=r"^\[AINews\]", entry_index=1
+            "swyx+ainews@substack.com", "latent.space", title_filter=r"^\[AINews\]", entry_index=1
         )
 
         assert result is not None
@@ -212,6 +235,20 @@ class TestProcessorGmailIntegration:
                 {"gmail": {"senderEmail": "test@example.com"}, "titleFilter": None},
                 entry_index=0,
                 source_id="ainews",
+            )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_missing_canonical_domain_returns_none(self, processor):
+        """Gmail source config without canonicalDomain should fail gracefully, not crash."""
+        proc = processor
+
+        with patch.object(proc, "_get_gmail_fetcher", return_value=MagicMock()):
+            result = await proc._fetch_from_gmail(
+                {"gmail": {"senderEmail": "test@example.com"}, "titleFilter": None},
+                entry_index=0,
+                source_id="test_source",
             )
 
         assert result is None

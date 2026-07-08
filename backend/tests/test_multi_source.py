@@ -41,7 +41,9 @@ class TestConfig:
 
     def test_get_source_config_semianalysis(self):
         cfg = Config.get_source_config("semianalysis")
-        assert "semianalysis.com" in cfg["rssUrl"]
+        assert cfg["fetchMethod"] == "gmail"
+        assert cfg["gmail"]["senderEmail"] == "semianalysis@substack.com"
+        assert cfg["gmail"]["canonicalDomain"] == "newsletter.semianalysis.com"
 
     def test_get_source_config_import_ai(self):
         cfg = Config.get_source_config("import_ai")
@@ -83,8 +85,9 @@ class TestConfig:
 # ────────────────────────────────────────────
 
 class TestRssRedirects:
-    """semianalysis.com/feed is behind a bare-domain redirect; the shared
-    http_client must follow it or every fetch fails with a 301 HTTPStatusError."""
+    """Some RSS sources 301-redirect a bare-www URL to a canonical one (this bit
+    SemiAnalysis before it moved to Gmail fetching); the shared http_client must
+    follow redirects or those fetches fail with a 301 HTTPStatusError."""
 
     def test_http_client_follows_redirects(self, processor):
         assert processor.http_client.follow_redirects is True
@@ -95,16 +98,16 @@ class TestRssRedirects:
         <rss version="2.0"><channel>
             <item>
                 <title>Test Post</title>
-                <link>https://semianalysis.com/2026/07/01/test-post/</link>
+                <link>https://example.com/2026/07/01/test-post/</link>
                 <pubDate>Wed, 01 Jul 2026 00:00:00 +0000</pubDate>
                 <description><![CDATA[<p>hello</p>]]></description>
             </item>
         </channel></rss>"""
 
         def handler(request: httpx.Request) -> httpx.Response:
-            if request.url.host == "www.semianalysis.com":
+            if request.url.host == "www.example.com":
                 return httpx.Response(
-                    301, headers={"location": "https://semianalysis.com/feed/"}
+                    301, headers={"location": "https://example.com/feed/"}
                 )
             return httpx.Response(200, text=rss_xml)
 
@@ -113,11 +116,11 @@ class TestRssRedirects:
             follow_redirects=processor.http_client.follow_redirects,
         )
 
-        entry = await processor._fetch_rss_entry("https://www.semianalysis.com/feed", 0)
+        entry = await processor._fetch_rss_entry("https://www.example.com/feed", 0)
 
         assert entry is not None
         url, title, html_content, published = entry
-        assert url == "https://semianalysis.com/2026/07/01/test-post/"
+        assert url == "https://example.com/2026/07/01/test-post/"
 
 
 # ────────────────────────────────────────────

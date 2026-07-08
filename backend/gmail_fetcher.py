@@ -29,6 +29,7 @@ class GmailFetcher:
     def fetch_latest_email(
         self,
         sender_email: str,
+        canonical_domain: str,
         title_filter: str | None = None,
         entry_index: int = 0,
     ) -> tuple[str, str, str, str | None] | None:
@@ -36,6 +37,9 @@ class GmailFetcher:
 
         Args:
             sender_email: Email address to filter by (from: query).
+            canonical_domain: The publication's own post domain (e.g.
+                "latent.space"), used to pick the real article link out of
+                an email that may also contain links to other newsletters.
             title_filter: Optional regex to match against subject lines.
             entry_index: 0 = newest matching email, 1 = second newest, etc.
 
@@ -84,7 +88,7 @@ class GmailFetcher:
                 continue
 
             # Extract canonical URL from email HTML
-            url = self._extract_canonical_url(html_content)
+            url = self._extract_canonical_url(html_content, canonical_domain)
             if not url:
                 # Fallback: use a constructed URL from subject
                 url = f"gmail://msg/{msg_stub['id']}"
@@ -131,17 +135,30 @@ class GmailFetcher:
         return None
 
     @staticmethod
-    def _extract_canonical_url(html: str) -> str | None:
-        """Extract the canonical newsletter URL from Substack email HTML.
+    def _extract_canonical_url(html: str, domain_hint: str) -> str | None:
+        """Extract the canonical newsletter post URL from Substack email HTML.
 
-        Substack emails wrap links in redirects like:
-        https://substack.com/redirect/2/<base64-jwt>
-        The JWT payload contains an "e" field with the actual destination URL.
-        Falls back to direct latent.space/p/ links if found.
+        domain_hint restricts matches to the sender's own post domain (e.g.
+        "latent.space" or "newsletter.semianalysis.com") so we don't pick up
+        a "recommended posts" link to someone else's newsletter from the
+        email footer. Substack wraps post links a few different ways:
+
+        1. Redirect tokens (https://substack.com/redirect/2/<jwt>) whose
+           decoded payload has an "e" field with the destination URL.
+        2. A `next=` query param on subscribe/manage-subscription links,
+           URL-encoded, pointing at the actual post — this is how emails
+           for self-hosted-domain Substack publications (e.g. SemiAnalysis)
+           reference the post, since the redirect tokens there only wrap
+           subscribe/unsubscribe actions, not the article itself.
+        3. A direct, unwrapped <a href> or bare URL to a /p/ post.
         """
         import json
+        from urllib.parse import unquote
 
-        # Strategy 1: Decode Substack redirect tokens for latent.space/p/ URLs
+        def is_post_url(url: str) -> bool:
+            return domain_hint in url and "/p/" in url
+
+        # Strategy 1: Decode Substack redirect tokens
         # Format: substack.com/redirect/2/<base64-payload>.<signature>
         redirects = re.findall(r'https://substack\.com/redirect/2/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)', html)
         for token in redirects:
@@ -153,24 +170,28 @@ class GmailFetcher:
                     payload_b64 += "=" * padding
                 payload = json.loads(base64.urlsafe_b64decode(payload_b64))
                 dest_url = payload.get("e", "")
-                if "latent.space/p/" in dest_url:
-                    # Strip query params
-                    clean_url = dest_url.split("?")[0]
-                    return clean_url
+                if is_post_url(dest_url):
+                    return dest_url.split("?")[0]
             except Exception:
                 continue
 
-        # Strategy 2: Direct latent.space/p/ link
+        # Strategy 2: `next=` query param on a subscribe/action link
+        for encoded in re.findall(r'next=([^&"\'\s]+)', html):
+            dest_url = unquote(encoded)
+            if is_post_url(dest_url):
+                return dest_url.split("?")[0]
+
+        # Strategy 3: Direct <a href> link
         direct = re.search(
-            r'<a[^>]+href="(https?://[^"]*latent\.space/p/[^"?]*)',
+            rf'<a[^>]+href="(https?://[^"]*{re.escape(domain_hint)}/p/[^"?]*)',
             html,
         )
         if direct:
             return direct.group(1)
 
-        # Strategy 3: Bare URL in text
+        # Strategy 4: Bare URL in text
         bare = re.search(
-            r'https?://[^"\s]*latent\.space/p/[^"?\s]*',
+            rf'https?://[^"\s]*{re.escape(domain_hint)}/p/[^"?\s]*',
             html,
         )
         if bare:

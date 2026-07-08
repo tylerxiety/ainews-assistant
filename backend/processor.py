@@ -1192,12 +1192,21 @@ class NewsletterProcessor:
             logger.error(f"No senderEmail configured for Gmail source {source_id}")
             return None
 
+        canonical_domain = gmail_config.get("canonicalDomain")
+        if not canonical_domain:
+            logger.error(f"No canonicalDomain configured for Gmail source {source_id}")
+            return None
+
         title_filter = source_config.get("titleFilter")
         logger.info(f"Fetching from Gmail for {source_id}: sender={sender_email}")
 
         try:
             result = await asyncio.to_thread(
-                fetcher.fetch_latest_email, sender_email, title_filter, entry_index
+                fetcher.fetch_latest_email,
+                sender_email,
+                canonical_domain,
+                title_filter=title_filter,
+                entry_index=entry_index,
             )
         except Exception as e:
             logger.error(f"Gmail API error for {source_id}: {e}")
