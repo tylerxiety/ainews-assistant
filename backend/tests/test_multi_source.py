@@ -3,6 +3,7 @@ import os
 import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from config import Config
@@ -75,6 +76,48 @@ class TestConfig:
             has_rss = "rssUrl" in cfg
             has_gmail = cfg.get("fetchMethod") == "gmail" and "gmail" in cfg
             assert has_rss or has_gmail, f"{src_id} missing 'rssUrl' or gmail config"
+
+
+# ────────────────────────────────────────────
+# RSS fetch tests
+# ────────────────────────────────────────────
+
+class TestRssRedirects:
+    """semianalysis.com/feed is behind a bare-domain redirect; the shared
+    http_client must follow it or every fetch fails with a 301 HTTPStatusError."""
+
+    def test_http_client_follows_redirects(self, processor):
+        assert processor.http_client.follow_redirects is True
+
+    @pytest.mark.asyncio
+    async def test_fetch_rss_entry_follows_redirect(self, processor):
+        rss_xml = """<?xml version="1.0"?>
+        <rss version="2.0"><channel>
+            <item>
+                <title>Test Post</title>
+                <link>https://semianalysis.com/2026/07/01/test-post/</link>
+                <pubDate>Wed, 01 Jul 2026 00:00:00 +0000</pubDate>
+                <description><![CDATA[<p>hello</p>]]></description>
+            </item>
+        </channel></rss>"""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.host == "www.semianalysis.com":
+                return httpx.Response(
+                    301, headers={"location": "https://semianalysis.com/feed/"}
+                )
+            return httpx.Response(200, text=rss_xml)
+
+        processor.http_client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            follow_redirects=processor.http_client.follow_redirects,
+        )
+
+        entry = await processor._fetch_rss_entry("https://www.semianalysis.com/feed", 0)
+
+        assert entry is not None
+        url, title, html_content, published = entry
+        assert url == "https://semianalysis.com/2026/07/01/test-post/"
 
 
 # ────────────────────────────────────────────

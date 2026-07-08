@@ -64,8 +64,9 @@ class NewsletterProcessor:
             speaking_rate=Config.TTS_SPEAKING_RATE,
         )
         
-        # Shared HTTP client with configurable timeout
-        self.http_client = httpx.AsyncClient(timeout=Config.HTTP_TIMEOUT)
+        # Shared HTTP client with configurable timeout. follow_redirects=True because
+        # some sources (e.g. semianalysis.com) 301-redirect bare-www URLs to canonical ones.
+        self.http_client = httpx.AsyncClient(timeout=Config.HTTP_TIMEOUT, follow_redirects=True)
 
     async def close(self):
         """Close resources."""
