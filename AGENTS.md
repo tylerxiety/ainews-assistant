@@ -73,7 +73,7 @@ AI News Assistant - PWA that converts AI/ML newsletters (8 sources including AIN
 ### Backend environment
 **Single branch (`main`), single Cloud Run service.** The old `dev` branch, `newsletter-processor-dev` service, and their schedulers were retired on 2026-06-18 — everything runs off `main` now. A push to `main` deploys the live service and is what the scheduler hits, so a quick fix merged to `main` actually takes effect (the previous setup deployed `main` to a service nothing triggered, which is why earlier `main` merges appeared to do nothing).
 
-- **GCP project**: `ainews-assistant` (account: `tyler.ty.xie@gmail.com`)
+- **GCP project**: `ainews-assistant` (account: `yxxhylcs@gmail.com`, billing account `01483C-99346D-040C7A`). Migrated 2026-07-25 from `tyler.ty.xie@gmail.com`, whose credits ran out and auto-disabled billing. Only the billing link and IAM Owner moved — the project, buckets, Cloud Run URL, service account, and every GitHub secret are unchanged, so no code or CI config depends on the old account. `tyler.ty.xie@gmail.com` has no access. Note for future owner changes: this project has no org parent, so GCP refuses `roles/owner` via API (`SOLO_MUST_INVITE_OWNERS`) — grant it in the Console, which creates a `roles/resourcemanager.projectOwnerInvitee` binding that only becomes Owner once the invitee accepts the emailed invitation. IAM changes take a few minutes to propagate.
 - **Service** — `newsletter-processor` at `https://newsletter-processor-sju3afmruq-uc.a.run.app`
   - Deployed by `.github/workflows/deploy-backend.yml` on push to `main` (paths: `backend/**`, `config.yaml`)
   - Writes audio to `gs://ainews-audio-prod` (CORS configured for GET)
