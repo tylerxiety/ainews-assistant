@@ -31,7 +31,7 @@ class TestConfig:
     def test_get_source_config_valid(self):
         cfg = Config.get_source_config("ainews")
         assert cfg["fetchMethod"] == "gmail"
-        assert cfg["gmail"]["senderEmail"] == "swyx+ainews@substack.com"
+        assert cfg["gmail"]["senderEmail"] == "lspace@mail.beehiiv.com"
         assert cfg["titleFilter"] == "^\\[AINews\\]"
 
     def test_get_source_config_the_batch(self):

@@ -73,7 +73,7 @@ backend:
         name: "AINews"
         fetchMethod: "gmail"
         gmail:
-          senderEmail: "swyx+ainews@substack.com"
+          senderEmail: "lspace@mail.beehiiv.com"
           canonicalDomain: "latent.space"
         titleFilter: "^\\[AINews\\]"
         enableConsolidation: true
