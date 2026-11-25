@@ -56,7 +56,9 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: /^https:\/\/storage\.googleapis\.com\/.*/i,
+            // Let Safari send byte-range requests directly to Cloud Storage.
+            urlPattern: ({ url, request }) =>
+              url.origin === 'https://storage.googleapis.com' && !request.headers.has('range'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'audio-cache',

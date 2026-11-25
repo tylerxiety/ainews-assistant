@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('a recap section with embedded segments plays and advances on mobile', async ({ page }) => {
   await page.goto('/player/96c37a1e-4d7a-4a04-bc05-1ffd163ec5f6')
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller))
 
   const recap = page.locator('.section-header').filter({
     has: page.getByRole('heading', { name: 'AI Twitter Recap', exact: true }),
