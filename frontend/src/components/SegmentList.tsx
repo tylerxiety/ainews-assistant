@@ -72,26 +72,6 @@ export default function SegmentList({
         return <p>{nodes}</p>
     }
 
-    // Pointer tracking for tap vs scroll
-    const pointerStartRef = React.useRef<{ x: number, y: number } | null>(null)
-
-    const handlePointerDown = (e: React.PointerEvent) => {
-        pointerStartRef.current = { x: e.clientX, y: e.clientY }
-    }
-
-    const handlePointerUp = (e: React.PointerEvent, groupIndex: number, segmentIndex: number) => {
-        if (!pointerStartRef.current) return
-
-        const dx = Math.abs(e.clientX - pointerStartRef.current.x)
-        const dy = Math.abs(e.clientY - pointerStartRef.current.y)
-
-        // If movement is small, treat as click/tap
-        if (dx < 10 && dy < 10) {
-            onSegmentClick(groupIndex, segmentIndex)
-        }
-        pointerStartRef.current = null
-    }
-
     return (
         <div className="segments-list">
             {groups.length === 0 ? (
@@ -102,48 +82,18 @@ export default function SegmentList({
                         ? group.label_zh
                         : group.label
 
-                    // Section headers are rendered as larger dividers
-                    if (group.is_section_header) {
-                        return (
-                            <div
-                                key={group.id}
-                                id={`group-${group.id}`}
-                                className={`section-header ${groupIndex === currentGroupIndex ? 'group-active' : ''}`}
-                                onClick={() => onSegmentClick(groupIndex, 0)}
-                            >
-                                {groupLabel && <h2 className="section-title">{groupLabel}</h2>}
-                                {group.segments.length > 0 && (
-                                    <div className="group-items">
-                                        {group.segments.map((segment) => {
-                                            const displayContent = language === 'zh' && segment.content_raw_zh
-                                                ? segment.content_raw_zh
-                                                : segment.content_raw
-                                            return (
-                                                <div
-                                                    key={segment.id}
-                                                    id={`segment-${segment.id}`}
-                                                    className="segment group-item"
-                                                >
-                                                    <div className="segment-content">
-                                                        {renderContentWithLinks(displayContent, segment.links)}
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    }
-
                     return (
                     <div
                         key={group.id}
                         id={`group-${group.id}`}
-                        className={`topic-group ${groupIndex === currentGroupIndex ? 'group-active' : ''}`}
+                        className={`${group.is_section_header ? 'section-header' : 'topic-group'} ${groupIndex === currentGroupIndex ? 'group-active' : ''}`}
                     >
                         <div className="group-content">
-                            {groupLabel && <h3 className="group-title">{groupLabel}</h3>}
+                            {groupLabel && (group.is_section_header ? (
+                                <h2 className="section-title" onClick={() => onSegmentClick(groupIndex, 0)}>
+                                    {groupLabel}
+                                </h2>
+                            ) : <h3 className="group-title">{groupLabel}</h3>)}
 
                             <div className="group-items">
                                 {group.segments.map((segment, segmentIndex) => {
@@ -156,8 +106,7 @@ export default function SegmentList({
                                             key={segment.id}
                                             id={`segment-${segment.id}`}
                                             className={`segment group-item ${isActive ? 'active' : ''}`}
-                                            onPointerDown={handlePointerDown}
-                                            onPointerUp={(e) => handlePointerUp(e, groupIndex, segmentIndex)}
+                                            onClick={() => onSegmentClick(groupIndex, segmentIndex)}
                                         >
                                             <div className="segment-content">
                                                 {renderContentWithLinks(displayContent, segment.links)}
@@ -167,7 +116,6 @@ export default function SegmentList({
                                             {(isActive || bookmarkedSegments.has(segment.id)) && (
                                                 <button
                                                     className={`bookmark-btn ${bookmarkedSegments.has(segment.id) ? 'bookmarked' : ''}`}
-                                                    onPointerDown={(e) => e.stopPropagation()}
                                                     onClick={(e) => onBookmark(e, segment)}
                                                     disabled={bookmarkingSegment === segment.id || bookmarkedSegments.has(segment.id)}
                                                     title={bookmarkedSegments.has(segment.id) ? t('segmentList.bookmarked') : t('segmentList.bookmarkToClickUp')}

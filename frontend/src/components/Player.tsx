@@ -228,8 +228,9 @@ export default function Player() {
     return !!seg.audio_url
   }, [language])
 
-  // Helper to check if group (section header) has audio for current language
+  // Only standalone section headers use group-level audio.
   const groupHasAudio = useCallback((group: TopicGroup) => {
+    if (!group.is_section_header || group.segments.length > 0) return false
     if (language === 'zh') return !!group.audio_url_zh
     return !!group.audio_url
   }, [language])
@@ -265,11 +266,6 @@ export default function Player() {
     // Filter out segments without Chinese audio and groups with no remaining segments
     const filteredGroups: TopicGroup[] = []
     for (const group of sectionGroups) {
-      if (group.is_section_header) {
-        // Section headers are handled after we know if there are visible segments
-        continue
-      }
-
       // Filter segments to only those with Chinese audio
       const filteredSegments = group.segments.filter(seg => !!seg.audio_url_zh)
       if (filteredSegments.length > 0) {
@@ -283,7 +279,7 @@ export default function Player() {
     // Only include section header if there are visible segments after it
     if (filteredGroups.length > 0 && sectionStartIndex >= 0) {
       const sectionHeader = sectionGroups[0]
-      if (sectionHeader?.is_section_header && sectionHeader.audio_url_zh) {
+      if (sectionHeader?.is_section_header && sectionHeader.segments.length === 0 && sectionHeader.audio_url_zh) {
         filteredGroups.unshift(sectionHeader)
       }
     }
@@ -303,7 +299,7 @@ export default function Player() {
       const group = groups[gi]
 
       // Section headers are playable at group level
-      if (group.is_section_header && gi > groupIndex && groupHasAudio(group)) {
+      if (gi > groupIndex && groupHasAudio(group)) {
         currentGroupIndexRef.current = gi
         currentSegmentIndexRef.current = 0
         setCurrentGroupIndex(gi)
@@ -351,7 +347,7 @@ export default function Player() {
       }
 
       // Section headers are playable at group level (check after segments if moving to earlier group)
-      if (group.is_section_header && gi < groupIndex && groupHasAudio(group)) {
+      if (gi < groupIndex && groupHasAudio(group)) {
         currentGroupIndexRef.current = gi
         currentSegmentIndexRef.current = 0
         setCurrentGroupIndex(gi)
@@ -433,10 +429,8 @@ export default function Player() {
             console.error("Play failed:", err)
           }
           if (err.name !== 'AbortError') {
-            // Don't show error immediately, user might just need to interact
-            // setError(`Playback failed: ${err.message}`)
+            setIsPlaying(false)
           }
-          setIsPlaying(false)
         })
       }
       setIsPlaying(true)
@@ -702,40 +696,27 @@ export default function Player() {
       // Validate indices
       if (restoredState.groupIndex < groups.length) {
         const group = groups[restoredState.groupIndex]
-        if (restoredState.segmentIndex < group.segments.length) {
+        if (restoredState.segmentIndex < group.segments.length ||
+          (restoredState.segmentIndex === 0 && groupHasAudio(group))) {
           setCurrentGroupIndex(restoredState.groupIndex)
           setCurrentSegmentIndex(restoredState.segmentIndex)
           hasInteractedRef.current = true // Allow auto-scroll
         }
       }
     }
-  }, [restoredState, loading, groups])
+  }, [restoredState, loading, groups, groupHasAudio])
 
-  // Get current audio URL (per-segment or group-level for section headers, language-aware)
-  const getCurrentAudio = () => {
-    const group = groups[currentGroupIndex]
+  const getAudioUrl = (groupIndex: number, segmentIndex: number) => {
+    const group = groups[groupIndex]
     if (!group) return null
 
-    // Section headers have no segments - use group-level audio
-    if (group.is_section_header) {
-      if (language === 'zh') {
-        return group.audio_url_zh || null
-      }
-      return group.audio_url || null
-    }
-
-    const segment = group.segments[currentSegmentIndex]
-    if (!segment) return null
-
-    // For Chinese, use audio_url_zh if available, otherwise skip this segment
-    if (language === 'zh') {
-      return segment.audio_url_zh || null
-    }
-    return segment.audio_url || null
+    const item = group.is_section_header && group.segments.length === 0
+      ? group
+      : group.segments[segmentIndex]
+    return (language === 'zh' ? item?.audio_url_zh : item?.audio_url) || null
   }
 
-  const currentAudioUrl = getCurrentAudio()
-
+  const currentAudioUrl = getAudioUrl(currentGroupIndex, currentSegmentIndex)
 
   // Handle language switch mid-playback
   useEffect(() => {
@@ -784,7 +765,7 @@ export default function Player() {
       const audio = audioRef.current
 
       // Avoid reloading if URL hasn't changed (optimization)
-      const currentSrc = audio.currentSrc || audio.src
+      const currentSrc = audio.src
       if (currentSrc === currentAudioUrl) {
         return
       }
@@ -838,7 +819,7 @@ export default function Player() {
     const currentGroup = groups[currentGroupIndex]
     if (currentGroup) {
       // Section headers scroll to the group element
-      if (currentGroup.is_section_header) {
+      if (currentGroup.is_section_header && currentGroup.segments.length === 0) {
         const el = document.getElementById(`group-${currentGroup.id}`)
         if (el) {
           el.scrollIntoView({
@@ -925,7 +906,7 @@ export default function Player() {
       const group = groups[gi]
 
       // Section headers are playable at group level
-      if (group.is_section_header && gi > currentGroupIndex && groupHasAudio(group)) {
+      if (gi > currentGroupIndex && groupHasAudio(group)) {
         setCurrentGroupIndex(gi)
         setCurrentSegmentIndex(0)
         shouldAutoPlayRef.current = true
@@ -989,6 +970,18 @@ export default function Player() {
     setCurrentGroupIndex(groupIndex)
     setCurrentSegmentIndex(segmentIndex)
     shouldAutoPlayRef.current = true
+
+    const audio = audioRef.current
+    const url = getAudioUrl(groupIndex, segmentIndex)
+    if (!audio || !url) return
+
+    // Start playback inside the tap so mobile Safari grants media playback.
+    if (audio.src !== url) {
+      setCurrentTime(0)
+      setDuration(0)
+      audio.src = url
+    }
+    handlePlay()
   }
 
   // Bookmark Handling
@@ -1048,9 +1041,7 @@ export default function Player() {
   }
 
   const handleGroupSelect = (groupIndex: number) => {
-    setCurrentGroupIndex(groupIndex)
-    setCurrentSegmentIndex(0)
-    shouldAutoPlayRef.current = true
+    handleSegmentClick(groupIndex, 0)
     setSidePanelOpen(false)
 
     // Scroll to group (optional, but good UX)
